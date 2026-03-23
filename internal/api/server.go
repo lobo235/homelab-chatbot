@@ -127,7 +127,7 @@ func (rw *responseWriter) Flush() {
 
 func securityHeaders(next http.Handler) http.Handler {
 	csp := "default-src 'self'; " +
-		"script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; " +
+		"script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"connect-src 'self'; " +
 		"img-src 'self' data:"
