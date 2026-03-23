@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -17,28 +18,32 @@ type GatewayConfig struct {
 
 // Config holds all configuration values for the chatbot.
 type Config struct {
-	AnthropicAPIKey string
-	ClaudeModel     string
-	MCPServerCmd    string
-	AdminPassword   string
-	SessionSecret   string
-	DataDir         string
-	Port            string
-	LogLevel        string
-	Gateways        []GatewayConfig
+	AnthropicAPIKey   string
+	ClaudeModel       string
+	MCPServerCmd      string
+	AdminPassword     string
+	SessionSecret     string
+	DataDir           string
+	Port              string
+	LogLevel          string
+	ContextWindowSize int
+	ToolResultMaxLen  int
+	Gateways          []GatewayConfig
 }
 
 // Load reads configuration from environment variables and validates required fields.
 func Load() (*Config, error) {
 	cfg := &Config{
-		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
-		ClaudeModel:     envOr("CLAUDE_MODEL", "claude-sonnet-4-6"),
-		MCPServerCmd:    os.Getenv("MCP_SERVER_CMD"),
-		AdminPassword:   os.Getenv("ADMIN_PASSWORD"),
-		SessionSecret:   os.Getenv("SESSION_SECRET"),
-		DataDir:         envOr("DATA_DIR", "/data"),
-		Port:            envOr("PORT", "8080"),
-		LogLevel:        envOr("LOG_LEVEL", "info"),
+		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
+		ClaudeModel:       envOr("CLAUDE_MODEL", "claude-sonnet-4-6"),
+		MCPServerCmd:      os.Getenv("MCP_SERVER_CMD"),
+		AdminPassword:     os.Getenv("ADMIN_PASSWORD"),
+		SessionSecret:     os.Getenv("SESSION_SECRET"),
+		DataDir:           envOr("DATA_DIR", "/data"),
+		Port:              envOr("PORT", "8080"),
+		LogLevel:          envOr("LOG_LEVEL", "info"),
+		ContextWindowSize: envOrInt("CONTEXT_WINDOW_SIZE", 20),
+		ToolResultMaxLen:  envOrInt("TOOL_RESULT_MAX_LEN", 500),
 	}
 
 	// Load gateway configs from env vars (same ones passed to MCP subprocess).
@@ -113,4 +118,16 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envOrInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

@@ -58,6 +58,36 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("got LogLevel=%q, want %q", cfg.LogLevel, "info")
 	}
+	if cfg.ContextWindowSize != 20 {
+		t.Errorf("got ContextWindowSize=%d, want 20", cfg.ContextWindowSize)
+	}
+	if cfg.ToolResultMaxLen != 500 {
+		t.Errorf("got ToolResultMaxLen=%d, want 500", cfg.ToolResultMaxLen)
+	}
+}
+
+func TestLoad_CustomIntDefaults(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CONTEXT_WINDOW_SIZE", "30")
+	t.Setenv("TOOL_RESULT_MAX_LEN", "1000")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ContextWindowSize != 30 {
+		t.Errorf("got ContextWindowSize=%d, want 30", cfg.ContextWindowSize)
+	}
+	if cfg.ToolResultMaxLen != 1000 {
+		t.Errorf("got ToolResultMaxLen=%d, want 1000", cfg.ToolResultMaxLen)
+	}
+}
+
+func TestEnvOrInt_InvalidFallback(t *testing.T) {
+	t.Setenv("TEST_INT_VAR", "notanumber")
+	cfg := envOrInt("TEST_INT_VAR", 42)
+	if cfg != 42 {
+		t.Errorf("got %d, want fallback 42 for invalid int", cfg)
+	}
 }
 
 func TestSlogLevel(t *testing.T) {

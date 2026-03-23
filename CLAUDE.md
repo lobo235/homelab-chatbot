@@ -101,6 +101,8 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `DATA_DIR` | no | `/data` | Directory for SQLite DB |
 | `PORT` | no | `8080` | Listen port |
 | `LOG_LEVEL` | no | `info` | Verbosity: `debug`, `info`, `warn`, `error` |
+| `CONTEXT_WINDOW_SIZE` | no | `20` | Recent messages to keep in full when trimming context |
+| `TOOL_RESULT_MAX_LEN` | no | `500` | Max chars for old tool results before truncation |
 | `NOMAD_GATEWAY_URL` | no | — | Nomad gateway base URL (for admin server stop) |
 | `NOMAD_GATEWAY_KEY` | no | — | Nomad gateway API key |
 | `ADGUARD_GATEWAY_URL` | no | — | AdGuard gateway base URL |
@@ -176,6 +178,7 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 {"type":"token","content":"..."}
 {"type":"tool_start","name":"...","message":"..."}
 {"type":"tool_done","name":"...","status":"done|failed"}
+{"type":"rate_limit","message":"Rate limited by API. Retrying in N seconds..."}
 {"type":"done"}
 {"type":"error","message":"..."}
 ```

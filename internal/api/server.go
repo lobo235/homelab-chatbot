@@ -23,16 +23,18 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server with all routes registered.
-func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, gateways []config.GatewayConfig, version string, log *slog.Logger) *Server {
+func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, gateways []config.GatewayConfig, version string, contextWindowSize, toolResultMaxLen int, log *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	h := &Handlers{
-		DB:      db,
-		Auth:    authSvc,
-		Chat:    chatSvc,
-		MCPChat: mcpClient,
-		Log:     log,
-		Version: version,
+		DB:                db,
+		Auth:              authSvc,
+		Chat:              chatSvc,
+		MCPChat:           mcpClient,
+		Log:               log,
+		Version:           version,
+		ContextWindowSize: contextWindowSize,
+		ToolResultMaxLen:  toolResultMaxLen,
 	}
 
 	ah := &admin.Handlers{

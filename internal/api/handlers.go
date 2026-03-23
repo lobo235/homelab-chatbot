@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,12 +16,14 @@ import (
 
 // Handlers holds dependencies for user-facing HTTP handlers.
 type Handlers struct {
-	DB      *database.DB
-	Auth    *auth.Service
-	Chat    *chat.Service
-	MCPChat *chat.MCPClient
-	Log     *slog.Logger
-	Version string
+	DB                *database.DB
+	Auth              *auth.Service
+	Chat              *chat.Service
+	MCPChat           *chat.MCPClient
+	Log               *slog.Logger
+	Version           string
+	ContextWindowSize int
+	ToolResultMaxLen  int
 }
 
 // HandleLogin processes POST /api/auth/login.
@@ -184,6 +187,9 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 	var totalInputTokens int64
 
 	for round := 0; round < maxToolRounds; round++ {
+		// Trim context to keep token usage manageable.
+		msgs = h.trimContext(msgs)
+
 		eventCh := make(chan chat.SSEEvent, 100)
 		var result *chat.StreamResult
 		var streamErr error
@@ -200,7 +206,11 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 
 		if streamErr != nil {
 			h.Log.Error("stream error", "error", streamErr, "conversation_id", convID, "round", round)
-			sendEvent(chat.SSEEvent{Type: "error", Message: "Failed to get response from Claude"})
+			errMsg := "Failed to get response from Claude"
+			if errors.Is(streamErr, chat.ErrRateLimitExhausted) {
+				errMsg = "Rate limit exceeded after retries. Please wait a moment and try again."
+			}
+			sendEvent(chat.SSEEvent{Type: "error", Message: errMsg})
 			return
 		}
 
@@ -470,4 +480,110 @@ func (h *Handlers) HandleGetMe(w http.ResponseWriter, r *http.Request) {
 		"max_servers":    user.MaxServers,
 		"max_tokens":     user.MaxTokens,
 	})
+}
+
+// trimContext applies a sliding window and truncates old tool results to reduce
+// token usage on subsequent API calls. It keeps the first user message (for
+// context) plus the last ContextWindowSize messages. For messages outside the
+// recent window, tool_result content blocks are truncated to ToolResultMaxLen.
+// tool_use / tool_result pairs are never split.
+func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) []chat.AnthropicMessage {
+	windowSize := h.ContextWindowSize
+	if windowSize <= 0 {
+		windowSize = 20
+	}
+	maxLen := h.ToolResultMaxLen
+	if maxLen <= 0 {
+		maxLen = 500
+	}
+
+	if len(msgs) <= windowSize {
+		return msgs
+	}
+
+	// Find the boundary: keep first message + last windowSize messages.
+	// Walk backward from the cut point to avoid splitting tool_use/tool_result pairs.
+	cutIdx := len(msgs) - windowSize
+	if cutIdx <= 1 {
+		return msgs
+	}
+
+	// Ensure we don't split a tool_use from its tool_result. If the message at
+	// cutIdx is a user message with tool_result content, include the preceding
+	// assistant message (which contains the tool_use) too.
+	for cutIdx > 1 && isToolResultMessage(msgs[cutIdx]) {
+		cutIdx--
+	}
+
+	// Build result: first message + (optionally truncated middle) + recent window.
+	result := make([]chat.AnthropicMessage, 0, 1+len(msgs)-cutIdx)
+	result = append(result, msgs[0])
+
+	// Middle messages (between first and window) get tool results truncated.
+	for i := 1; i < cutIdx; i++ {
+		result = append(result, truncateToolResults(msgs[i], maxLen))
+	}
+
+	// Recent window: keep as-is.
+	result = append(result, msgs[cutIdx:]...)
+
+	return result
+}
+
+// isToolResultMessage checks if a message contains tool_result content blocks.
+func isToolResultMessage(msg chat.AnthropicMessage) bool {
+	arr, ok := msg.Content.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if m["type"] == "tool_result" {
+			return true
+		}
+	}
+	return false
+}
+
+// truncateToolResults truncates tool_result content to maxLen characters.
+func truncateToolResults(msg chat.AnthropicMessage, maxLen int) chat.AnthropicMessage {
+	arr, ok := msg.Content.([]interface{})
+	if !ok {
+		return msg
+	}
+
+	newContent := make([]interface{}, len(arr))
+	changed := false
+	for i, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			newContent[i] = item
+			continue
+		}
+		if m["type"] != "tool_result" {
+			newContent[i] = item
+			continue
+		}
+		content, ok := m["content"].(string)
+		if !ok || len(content) <= maxLen {
+			newContent[i] = item
+			continue
+		}
+		// Clone the map and truncate.
+		newMap := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			newMap[k] = v
+		}
+		newMap["content"] = content[:maxLen] + "... [truncated]"
+		newContent[i] = newMap
+		changed = true
+	}
+
+	if !changed {
+		return msg
+	}
+	return chat.AnthropicMessage{Role: msg.Role, Content: newContent}
 }

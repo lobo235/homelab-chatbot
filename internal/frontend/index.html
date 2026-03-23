@@ -147,6 +147,9 @@ a:hover{text-decoration:underline}
 .typing span:nth-child(2){animation-delay:.2s}
 .typing span:nth-child(3){animation-delay:.4s}
 @keyframes bounce{to{transform:translateY(-6px);opacity:.4}}
+/* Rate limit banner */
+.rate-limit-banner{background:rgba(210,153,34,.15);border:1px solid var(--warning);color:var(--warning);padding:8px 16px;border-radius:var(--radius);margin:8px 0;display:flex;align-items:center;gap:8px;font-size:.85rem}
+.rate-limit-banner .rl-icon{font-size:1.1rem}
 </style>
 </head>
 <body>
@@ -263,9 +266,14 @@ a:hover{text-decoration:underline}
               <div class="tool-body" x-show="tool.expanded" x-text="tool.message || tool.name"></div>
             </div>
           </template>
+          <!-- Rate limit banner -->
+          <div x-show="rateLimitMessage" class="rate-limit-banner">
+            <span class="rl-icon">&#9888;</span>
+            <span x-text="rateLimitMessage"></span>
+          </div>
           <!-- Streamed text -->
           <div x-html="renderMarkdown(streamBuffer)"></div>
-          <div x-show="streamBuffer === '' && toolCalls.length === 0" class="typing"><span></span><span></span><span></span></div>
+          <div x-show="streamBuffer === '' && toolCalls.length === 0 && !rateLimitMessage" class="typing"><span></span><span></span><span></span></div>
         </div>
       </div>
     </div>
@@ -422,6 +430,7 @@ function chatApp() {
     streamBuffer: '',
     toolCalls: [],
     abortController: null,
+    rateLimitMessage: '',
     verbosityMode: 'kid',
     adminUsers: [],
     adminUsage: [],
@@ -602,6 +611,7 @@ function chatApp() {
       this.streaming = false;
       this.streamBuffer = '';
       this.toolCalls = [];
+      this.rateLimitMessage = '';
       this.loadSessions();
       this.loadServers();
       this.scrollToBottom();
@@ -610,10 +620,12 @@ function chatApp() {
     handleSSE(event) {
       switch (event.type) {
         case 'token':
+          this.rateLimitMessage = '';
           this.streamBuffer += event.content;
           this.scrollToBottom();
           break;
         case 'tool_start':
+          this.rateLimitMessage = '';
           this.toolCalls.push({name: event.name, message: event.message, status: 'running', expanded: true});
           this.scrollToBottom();
           break;
@@ -621,10 +633,16 @@ function chatApp() {
           const tool = this.toolCalls.find(t => t.name === event.name && t.status === 'running');
           if (tool) tool.status = event.status;
           break;
+        case 'rate_limit':
+          this.rateLimitMessage = event.message;
+          this.scrollToBottom();
+          break;
         case 'error':
+          this.rateLimitMessage = '';
           this.streamBuffer += `\n\nError: ${event.message}`;
           break;
         case 'done':
+          this.rateLimitMessage = '';
           break;
       }
     },

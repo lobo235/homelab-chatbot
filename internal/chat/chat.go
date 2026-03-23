@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -326,8 +327,16 @@ type AnthropicToolDef struct {
 	InputSchema interface{} `json:"input_schema"`
 }
 
+// maxRetries is the number of times to retry on rate limit (429) responses.
+const maxRetries = 3
+
+// ErrRateLimitExhausted indicates all rate limit retries were exhausted.
+var ErrRateLimitExhausted = fmt.Errorf("rate limit exceeded after %d retries", maxRetries)
+
 // StreamResponse calls the Anthropic API with streaming and writes SSE events.
 // It does NOT close eventCh — the caller is responsible for closing it.
+// On 429 responses, it retries up to maxRetries times with exponential backoff,
+// sending rate_limit SSE events so the frontend can show a waiting indicator.
 func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, eventCh chan<- SSEEvent) (*StreamResult, error) {
 	prompt := systemPrompt
 	if verbosityMode == "kid" {
@@ -352,27 +361,68 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", s.apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("API request: %w", err)
-	}
-	defer resp.Body.Close()
+	backoff := 5 * time.Second
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-api-key", s.apiKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("API request: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			_, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if attempt == maxRetries {
+				s.log.Warn("rate limit exhausted", "attempts", attempt+1)
+				return nil, ErrRateLimitExhausted
+			}
+
+			// Parse Retry-After header if present, otherwise use exponential backoff.
+			wait := backoff
+			if ra := resp.Header.Get("Retry-After"); ra != "" {
+				if secs, parseErr := strconv.Atoi(ra); parseErr == nil && secs > 0 {
+					wait = time.Duration(secs) * time.Second
+				}
+			}
+
+			s.log.Warn("rate limited by Anthropic API", "attempt", attempt+1, "retry_after", wait)
+			eventCh <- SSEEvent{
+				Type:    "rate_limit",
+				Message: fmt.Sprintf("Rate limited by API. Retrying in %d seconds...", int(wait.Seconds())),
+			}
+
+			select {
+			case <-time.After(wait):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+
+			backoff *= 2
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		}
+
+		result, streamErr := s.processStream(resp.Body, eventCh)
+		resp.Body.Close()
+		return result, streamErr
 	}
 
-	return s.processStream(resp.Body, eventCh)
+	return nil, ErrRateLimitExhausted
 }
 
 // processStream reads the Anthropic SSE stream and extracts text/tool events.

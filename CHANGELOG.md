@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Rate limit retry with exponential backoff: on Anthropic API 429 responses, retries up to 3 times with `Retry-After` header support
+- `rate_limit` SSE event type: frontend shows warning banner when rate limited, clears on retry success
+- Context window trimming: sliding window keeps first message + last N messages, truncates old tool results to reduce token usage
+- `CONTEXT_WINDOW_SIZE` config (default 20): number of recent messages to keep in full
+- `TOOL_RESULT_MAX_LEN` config (default 500): max chars for old tool result content before truncation
+
+### Changed
+- Rate limit exhaustion returns distinct error message instead of generic "Failed to get response from Claude"
+
 ## [v1.2.0] - 2026-03-23
 
 ### Added
