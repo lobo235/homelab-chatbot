@@ -113,6 +113,13 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `CURSEFORGE_GATEWAY_KEY` | no | — | CurseForge gateway API key |
 | `VAULT_GATEWAY_URL` | no | — | Vault gateway base URL |
 | `VAULT_GATEWAY_KEY` | no | — | Vault gateway API key |
+| `NOMAD_DEFAULT_DATACENTER` | no | — | Forwarded to MCP subprocess for job placement |
+| `NOMAD_DEFAULT_NODE_POOL` | no | `default` | Forwarded to MCP subprocess for node pool selection |
+| `NFS_BASE_PATH` | no | — | Forwarded to MCP subprocess for Minecraft server storage |
+| `MC_PUBLIC_DOMAIN` | no | — | Forwarded to MCP subprocess for server connection addresses |
+| `CF_ZONE_NAME` | no | — | Forwarded to MCP subprocess for Cloudflare DNS |
+| `ARTIFACT_ALLOWLIST` | no | — | Forwarded to MCP subprocess; comma-separated allowed artifact domains |
+| `ITZG_DOCS_REFRESH_INTERVAL` | no | `24h` | Forwarded to MCP subprocess; itzg docs cache refresh interval |
 
 ## Architecture
 

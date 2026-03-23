@@ -40,7 +40,7 @@ make lint
 
 ```bash
 docker build -t homelab-chatbot .
-docker build --build-arg VERSION=v1.0.0 -t homelab-chatbot .
+docker build --build-arg VERSION=v1.2.3 -t homelab-chatbot .
 ```
 
 ## License

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docker build workflow resolves version from git tags for non-tag builds
+- Docker build workflow accepts `workflow_dispatch` and `repository_dispatch` triggers for manual and cross-repo rebuilds
+
 ## [v1.1.1] - 2026-03-23
 
 ### Fixed
