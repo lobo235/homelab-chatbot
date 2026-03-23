@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-03-23
+
+### Added
+- Comprehensive markdown content styling: tables, headings, lists, blockquotes, code blocks all render with proper formatting
+- MCP subprocess env vars documented in CLAUDE.md configuration table
+
 ### Changed
+- Redesigned UI with darker theme inspired by GitHub/Claude Code aesthetic
+- Improved message bubble styling with better line-height, padding, and font sizing
+- Enter key now reliably sends messages across all browsers (Shift+Enter for newlines)
 - Docker build workflow resolves version from git tags for non-tag builds
 - Docker build workflow accepts `workflow_dispatch` and `repository_dispatch` triggers for manual and cross-repo rebuilds
 
