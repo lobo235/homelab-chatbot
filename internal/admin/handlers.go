@@ -2,19 +2,26 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/lobo235/homelab-chatbot/internal/auth"
+	"github.com/lobo235/homelab-chatbot/internal/config"
 	"github.com/lobo235/homelab-chatbot/internal/database"
+	"github.com/lobo235/homelab-chatbot/internal/gateway"
 )
 
 // Handlers holds dependencies for admin HTTP handlers.
 type Handlers struct {
-	DB  *database.DB
-	Log *slog.Logger
+	DB       *database.DB
+	Log      *slog.Logger
+	Gateway  *gateway.Client
+	Gateways []config.GatewayConfig
 }
 
 // HandleListUsers processes GET /admin/users.
@@ -241,6 +248,63 @@ func (h *Handlers) HandleLogs(w http.ResponseWriter, _ *http.Request) {
 		"entries": []interface{}{},
 		"note":    "Log aggregation not yet implemented — check container stderr",
 	})
+}
+
+// HandleStopServer processes POST /admin/servers/{name}/stop.
+func (h *Handlers) HandleStopServer(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "missing_name", "Server name is required")
+		return
+	}
+
+	var nomadGw *config.GatewayConfig
+	for i := range h.Gateways {
+		if h.Gateways[i].Name == "nomad" {
+			nomadGw = &h.Gateways[i]
+			break
+		}
+	}
+	if nomadGw == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_gateway", "Nomad gateway not configured")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	if err := h.Gateway.StopNomadJob(ctx, *nomadGw, name); err != nil {
+		h.Log.Error("failed to stop server", "name", name, "error", err)
+		writeError(w, http.StatusBadGateway, "stop_failed", "Failed to stop server: "+err.Error())
+		return
+	}
+
+	h.Log.Info("server stopped by admin", "name", name)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped", "name": name})
+}
+
+// HandleGateways processes GET /admin/gateways.
+func (h *Handlers) HandleGateways(w http.ResponseWriter, r *http.Request) {
+	if len(h.Gateways) == 0 {
+		writeJSON(w, http.StatusOK, []gateway.HealthResult{})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	results := make([]gateway.HealthResult, len(h.Gateways))
+	var wg sync.WaitGroup
+	for i, gw := range h.Gateways {
+		wg.Add(1)
+		go func(idx int, g config.GatewayConfig) {
+			defer wg.Done()
+			results[idx] = h.Gateway.CheckHealth(ctx, g)
+		}(i, gw)
+	}
+	wg.Wait()
+
+	writeJSON(w, http.StatusOK, results)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

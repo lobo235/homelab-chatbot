@@ -71,6 +71,8 @@ homelab-chatbot/
     ├── auth/
     │   ├── auth.go            # Session management, bcrypt, login/logout
     │   └── auth_test.go
+    ├── gateway/
+    │   └── client.go          # HTTP client for gateway services (health, job stop)
     ├── mcp/
     │   └── mcp.go             # MCP subprocess launcher (stdio)
     ├── chat/
@@ -99,6 +101,18 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `DATA_DIR` | no | `/data` | Directory for SQLite DB |
 | `PORT` | no | `8080` | Listen port |
 | `LOG_LEVEL` | no | `info` | Verbosity: `debug`, `info`, `warn`, `error` |
+| `NOMAD_GATEWAY_URL` | no | — | Nomad gateway base URL (for admin server stop) |
+| `NOMAD_GATEWAY_KEY` | no | — | Nomad gateway API key |
+| `ADGUARD_GATEWAY_URL` | no | — | AdGuard gateway base URL |
+| `ADGUARD_GATEWAY_KEY` | no | — | AdGuard gateway API key |
+| `CF_GATEWAY_URL` | no | — | Cloudflare gateway base URL |
+| `CF_GATEWAY_KEY` | no | — | Cloudflare gateway API key |
+| `MINECRAFT_GATEWAY_URL` | no | — | Minecraft gateway base URL |
+| `MINECRAFT_GATEWAY_KEY` | no | — | Minecraft gateway API key |
+| `CURSEFORGE_GATEWAY_URL` | no | — | CurseForge gateway base URL |
+| `CURSEFORGE_GATEWAY_KEY` | no | — | CurseForge gateway API key |
+| `VAULT_GATEWAY_URL` | no | — | Vault gateway base URL |
+| `VAULT_GATEWAY_KEY` | no | — | Vault gateway API key |
 
 ## Architecture
 
@@ -107,6 +121,7 @@ cmd/server/main.go               — entry point, wires deps, starts HTTP server
 internal/config/config.go         — ENV-based config with validation
 internal/database/database.go     — SQLite connection, schema, queries
 internal/auth/auth.go             — Session/user management, bcrypt, middleware
+internal/gateway/client.go         — HTTP client for gateway health checks & admin operations
 internal/mcp/mcp.go               — MCP subprocess launcher (stdio transport)
 internal/chat/chat.go             — Anthropic API client with MCP tool support
 internal/api/server.go            — HTTP server, route registration

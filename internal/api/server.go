@@ -10,8 +10,10 @@ import (
 	"github.com/lobo235/homelab-chatbot/internal/admin"
 	"github.com/lobo235/homelab-chatbot/internal/auth"
 	"github.com/lobo235/homelab-chatbot/internal/chat"
+	"github.com/lobo235/homelab-chatbot/internal/config"
 	"github.com/lobo235/homelab-chatbot/internal/database"
 	"github.com/lobo235/homelab-chatbot/internal/frontend"
+	"github.com/lobo235/homelab-chatbot/internal/gateway"
 )
 
 // Server is the HTTP server for the chatbot.
@@ -21,7 +23,7 @@ type Server struct {
 }
 
 // NewServer creates a new HTTP server with all routes registered.
-func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, version string, log *slog.Logger) *Server {
+func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, gateways []config.GatewayConfig, version string, log *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	h := &Handlers{
@@ -34,8 +36,10 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	}
 
 	ah := &admin.Handlers{
-		DB:  db,
-		Log: log,
+		DB:       db,
+		Log:      log,
+		Gateway:  gateway.NewClient(),
+		Gateways: gateways,
 	}
 
 	// Unauthenticated routes.
@@ -63,6 +67,8 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	mux.Handle("DELETE /admin/users/{id}", adminMw(http.HandlerFunc(ah.HandleDeleteUser)))
 	mux.Handle("PUT /admin/users/{id}/limits", adminMw(http.HandlerFunc(ah.HandleSetUserLimits)))
 	mux.Handle("GET /admin/servers", adminMw(http.HandlerFunc(ah.HandleListAllServers)))
+	mux.Handle("POST /admin/servers/{name}/stop", adminMw(http.HandlerFunc(ah.HandleStopServer)))
+	mux.Handle("GET /admin/gateways", adminMw(http.HandlerFunc(ah.HandleGateways)))
 	mux.Handle("GET /admin/usage", adminMw(http.HandlerFunc(ah.HandleUsage)))
 	mux.Handle("GET /admin/logs", adminMw(http.HandlerFunc(ah.HandleLogs)))
 
