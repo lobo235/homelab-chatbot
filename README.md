@@ -22,6 +22,12 @@ Browser → SSE → homelab-chatbot (Go HTTP server)
 
 See [CLAUDE.md](CLAUDE.md) for full project documentation.
 
+## First Run — Admin Bootstrap
+
+On first startup, the app creates an `admin` user with the password from the `ADMIN_PASSWORD` environment variable. This only happens once — if the `admin` user already exists in the SQLite database, the password is **not** updated.
+
+If you need to reset the admin password, delete the SQLite database file (`$DATA_DIR/homelab-chatbot.db`) and restart the app. This will recreate all tables and bootstrap the admin user with the current `ADMIN_PASSWORD` value.
+
 ## Build
 
 ```bash

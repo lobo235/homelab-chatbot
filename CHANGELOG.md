@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - MCP server config env vars in deploy spec (datacenter, node pool, NFS path, DNS config)
+- Agentic tool execution loop: Claude can now call MCP tools and receive results in a multi-turn conversation (up to 20 rounds per request)
+- Admin bootstrap process documented in README
 
 ### Changed
 - Removed `MC_PUBLIC_IP` from deploy spec (now optional upstream)

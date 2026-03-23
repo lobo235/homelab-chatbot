@@ -66,6 +66,21 @@ type SSEEvent struct {
 	Status  string `json:"status,omitempty"`
 }
 
+// ToolUseBlock represents a tool call from Claude's response.
+type ToolUseBlock struct {
+	ID    string          `json:"id"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"input"`
+}
+
+// StreamResult contains the full result of a single streaming API call.
+type StreamResult struct {
+	Text        string
+	ToolUses    []ToolUseBlock
+	StopReason  string
+	InputTokens int64
+}
+
 // Request is the request body for POST /api/chat.
 type Request struct {
 	Message        string `json:"message"`
@@ -311,9 +326,8 @@ type AnthropicToolDef struct {
 }
 
 // StreamResponse calls the Anthropic API with streaming and writes SSE events.
-func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, eventCh chan<- SSEEvent) (string, int64, error) {
-	defer close(eventCh)
-
+// It does NOT close eventCh — the caller is responsible for closing it.
+func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, eventCh chan<- SSEEvent) (*StreamResult, error) {
 	prompt := systemPrompt
 	if verbosityMode == "kid" {
 		prompt += "\n\nThe current user is in KID MODE. Use simple, friendly language. Avoid technical jargon and HCL. Show progress as natural language steps."
@@ -334,12 +348,12 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 
 	data, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", 0, fmt.Errorf("marshal request: %w", err)
+		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(data))
 	if err != nil {
-		return "", 0, err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", s.apiKey)
@@ -348,26 +362,29 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", 0, fmt.Errorf("API request: %w", err)
+		return nil, fmt.Errorf("API request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", 0, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
 	return s.processStream(resp.Body, eventCh)
 }
 
 // processStream reads the Anthropic SSE stream and extracts text/tool events.
-func (s *Service) processStream(body io.Reader, eventCh chan<- SSEEvent) (string, int64, error) {
+func (s *Service) processStream(body io.Reader, eventCh chan<- SSEEvent) (*StreamResult, error) {
 	scanner := bufio.NewScanner(body)
+	// Increase scanner buffer for large streaming responses.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	result := &StreamResult{}
 	var fullText strings.Builder
-	var inputTokens int64
+	var currentToolID string
 	var currentToolName string
 	var currentToolInput strings.Builder
-	var stopReason string
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -411,10 +428,11 @@ func (s *Service) processStream(body io.Reader, eventCh chan<- SSEEvent) (string
 
 		switch event.Type {
 		case "message_start":
-			inputTokens = event.Message.Usage.InputTokens
+			result.InputTokens = event.Message.Usage.InputTokens
 
 		case "content_block_start":
 			if event.ContentBlock.Type == "tool_use" {
+				currentToolID = event.ContentBlock.ID
 				currentToolName = event.ContentBlock.Name
 				currentToolInput.Reset()
 				eventCh <- SSEEvent{
@@ -438,28 +456,31 @@ func (s *Service) processStream(body io.Reader, eventCh chan<- SSEEvent) (string
 
 		case "content_block_stop":
 			if currentToolName != "" {
-				eventCh <- SSEEvent{
-					Type:   "tool_done",
-					Name:   currentToolName,
-					Status: "done",
+				inputJSON := currentToolInput.String()
+				if inputJSON == "" {
+					inputJSON = "{}"
 				}
+				result.ToolUses = append(result.ToolUses, ToolUseBlock{
+					ID:    currentToolID,
+					Name:  currentToolName,
+					Input: json.RawMessage(inputJSON),
+				})
+				currentToolID = ""
 				currentToolName = ""
 			}
 
 		case "message_delta":
 			if event.Delta.StopReason != "" {
-				stopReason = event.Delta.StopReason
+				result.StopReason = event.Delta.StopReason
 			}
 			if event.Usage.InputTokens > 0 {
-				inputTokens = event.Usage.InputTokens
+				result.InputTokens = event.Usage.InputTokens
 			}
 		}
 	}
 
-	_ = stopReason // Used in tool_use handling below.
-
-	eventCh <- SSEEvent{Type: "done"}
-	return fullText.String(), inputTokens, scanner.Err()
+	result.Text = fullText.String()
+	return result, scanner.Err()
 }
 
 // MCPToolsToAnthropic converts MCP tool definitions to Anthropic API format.

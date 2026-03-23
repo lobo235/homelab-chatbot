@@ -159,6 +159,9 @@ func (h *Handlers) getMCPTools() []chat.AnthropicToolDef {
 	return chat.MCPToolsToAnthropic(h.MCPChat.GetTools())
 }
 
+// maxToolRounds limits the number of tool execution round-trips to prevent runaway loops.
+const maxToolRounds = 20
+
 func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -171,36 +174,115 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		return
 	}
 
-	eventCh := make(chan chat.SSEEvent, 100)
-	var fullText string
-	var inputTokens int64
-	var streamErr error
-
-	go func() {
-		fullText, inputTokens, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, eventCh)
-	}()
-
-	for event := range eventCh {
+	sendEvent := func(event chat.SSEEvent) {
 		data, _ := json.Marshal(event)
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
 	}
 
-	if streamErr != nil {
-		h.Log.Error("stream error", "error", streamErr, "conversation_id", convID)
-		data, _ := json.Marshal(chat.SSEEvent{Type: "error", Message: "Failed to get response from Claude"})
-		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
-		flusher.Flush()
-		return
+	var fullText strings.Builder
+	var totalInputTokens int64
+
+	for round := 0; round < maxToolRounds; round++ {
+		eventCh := make(chan chat.SSEEvent, 100)
+		var result *chat.StreamResult
+		var streamErr error
+
+		go func() {
+			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, eventCh)
+			close(eventCh)
+		}()
+
+		// Forward SSE events to the client as they arrive.
+		for event := range eventCh {
+			sendEvent(event)
+		}
+
+		if streamErr != nil {
+			h.Log.Error("stream error", "error", streamErr, "conversation_id", convID, "round", round)
+			sendEvent(chat.SSEEvent{Type: "error", Message: "Failed to get response from Claude"})
+			return
+		}
+
+		fullText.WriteString(result.Text)
+		if result.InputTokens > totalInputTokens {
+			totalInputTokens = result.InputTokens
+		}
+
+		// If Claude didn't request tool use, we're done.
+		if result.StopReason != "tool_use" || len(result.ToolUses) == 0 {
+			break
+		}
+
+		// Build the assistant message with text + tool_use content blocks.
+		assistantContent := []interface{}{}
+		if result.Text != "" {
+			assistantContent = append(assistantContent, map[string]string{
+				"type": "text",
+				"text": result.Text,
+			})
+		}
+		for _, tu := range result.ToolUses {
+			assistantContent = append(assistantContent, map[string]interface{}{
+				"type":  "tool_use",
+				"id":    tu.ID,
+				"name":  tu.Name,
+				"input": tu.Input,
+			})
+		}
+		msgs = append(msgs, chat.AnthropicMessage{
+			Role:    "assistant",
+			Content: assistantContent,
+		})
+
+		// Execute each tool and collect results.
+		toolResults := []interface{}{}
+		for _, tu := range result.ToolUses {
+			var args map[string]interface{}
+			if err := json.Unmarshal(tu.Input, &args); err != nil {
+				args = map[string]interface{}{}
+			}
+
+			h.Log.Info("executing MCP tool", "tool", tu.Name, "conversation_id", convID)
+			toolResult, err := h.MCPChat.CallTool(r.Context(), tu.Name, args)
+
+			status := "done"
+			if err != nil {
+				status = "failed"
+				h.Log.Error("tool execution failed", "tool", tu.Name, "error", err)
+				toolResult = fmt.Sprintf("Error: %s", err.Error())
+			}
+
+			sendEvent(chat.SSEEvent{
+				Type:   "tool_done",
+				Name:   tu.Name,
+				Status: status,
+			})
+
+			toolResults = append(toolResults, map[string]interface{}{
+				"type":        "tool_result",
+				"tool_use_id": tu.ID,
+				"content":     toolResult,
+			})
+		}
+
+		// Append the user message with tool results.
+		msgs = append(msgs, chat.AnthropicMessage{
+			Role:    "user",
+			Content: toolResults,
+		})
 	}
 
-	if fullText != "" {
-		if _, err := h.DB.AddMessage(convID, "assistant", fullText); err != nil {
+	sendEvent(chat.SSEEvent{Type: "done"})
+
+	text := fullText.String()
+	if text != "" {
+		if _, err := h.DB.AddMessage(convID, "assistant", text); err != nil {
 			h.Log.Error("store assistant message", "error", err)
 		}
 	}
-	if inputTokens > 0 {
-		if err := h.DB.UpdateConversationTokens(convID, inputTokens); err != nil {
+	if totalInputTokens > 0 {
+		if err := h.DB.UpdateConversationTokens(convID, totalInputTokens); err != nil {
 			h.Log.Error("update tokens", "error", err)
 		}
 	}
