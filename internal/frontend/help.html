@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homelab AI — Help</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f0f23;color:#e0e0e0;padding:20px;line-height:1.6}
+.container{max-width:700px;margin:0 auto}
+h1{margin-bottom:8px;color:#4fc3f7}
+h2{margin-top:28px;margin-bottom:12px;color:#81c784;font-size:1.2rem;border-bottom:1px solid #2a2a4a;padding-bottom:6px}
+p{margin-bottom:12px;color:#aaa}
+blockquote{background:#1a1a2e;border-left:3px solid #4fc3f7;padding:10px 14px;margin:8px 0 16px;border-radius:4px;font-size:.95rem}
+blockquote code{background:#0f0f23;padding:1px 4px;border-radius:3px;font-family:'Fira Code',monospace;font-size:.9em}
+a{color:#4fc3f7;text-decoration:none}
+a:hover{text-decoration:underline}
+.back{display:inline-block;margin-bottom:20px;padding:6px 14px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:6px;font-size:.9rem}
+kbd{background:#2a2a4a;padding:2px 6px;border-radius:3px;font-size:.85rem;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="container">
+<a href="/" class="back">&larr; Back to Chat</a>
+<h1>Homelab AI Help</h1>
+<p>This chatbot helps you create and manage Minecraft servers on our homelab cluster. Here's everything you can do:</p>
+
+<h2>Getting Started</h2>
+<p>Not sure where to begin? Try one of these:</p>
+<blockquote>
+"What servers exist?"<br>
+"What can you help me with?"<br>
+"Show me a list of all running servers"
+</blockquote>
+
+<h2>Starting a Server</h2>
+<p>Ask me to create a vanilla or modded Minecraft server. I'll handle all the setup — Nomad job, DNS, storage, everything.</p>
+<blockquote>
+"Start a new All the Mods 10 server for me"<br>
+"Create a vanilla Minecraft server called my-world"<br>
+"Provision an ATM10 server with 21000 MHz CPU and 9 GB RAM"
+</blockquote>
+
+<h2>Managing a Server</h2>
+<p>Restart, stop, start, view logs, or get the connection address for a server.</p>
+<blockquote>
+"Restart my server"<br>
+"Stop my-server for tonight"<br>
+"Show me the logs for mc-atm10"<br>
+"What's the address for my server?"
+</blockquote>
+
+<h2>Player Management</h2>
+<p>Use RCON commands to manage players on your server.</p>
+<blockquote>
+"Op my friend Alex on my server"<br>
+"Deop Steve on mc-atm10"<br>
+"Add Alex to the whitelist"<br>
+"Who's playing on my server right now?"
+</blockquote>
+
+<h2>Backups</h2>
+<p>Create and manage world backups to keep your data safe.</p>
+<blockquote>
+"Back up my server"<br>
+"Show me the backups for mc-atm10"<br>
+"Restore my server from the latest backup"
+</blockquote>
+
+<h2>Teardown</h2>
+<p>When you're done with a server, I can clean everything up — Nomad job, DNS records, and optionally the files.</p>
+<blockquote>
+"Delete my server and clean up everything"<br>
+"Destroy mc-atm10"
+</blockquote>
+<p><strong>Note:</strong> I'll always ask for confirmation before deleting anything. Destruction is permanent!</p>
+
+<h2>Admin Only</h2>
+<p>If you're an admin, you have extra powers:</p>
+<blockquote>
+"Show all users' servers"<br>
+"Check gateway health status"<br>
+"Force-stop mc-atm10"
+</blockquote>
+
+<h2>Keyboard Shortcuts</h2>
+<p>
+<kbd>Enter</kbd> — Send message<br>
+<kbd>Shift+Enter</kbd> — New line<br>
+<kbd>Ctrl+/</kbd> — Focus input from anywhere<br>
+<kbd>Escape</kbd> — Cancel in-progress response
+</p>
+
+<h2>Tips</h2>
+<p>
+Toggle <strong>Operator mode</strong> in the sidebar to see full technical details including HCL specs and tool call information.<br><br>
+The server sidebar shows your active servers with live status. Click a server address to copy it.<br><br>
+Each conversation tracks token usage. Start a new conversation if you're getting close to the limit.
+</p>
+</div>
+</body>
+</html>

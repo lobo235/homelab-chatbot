@@ -1,0 +1,48 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck      # unhandled errors
+    - govet         # go vet checks
+    - staticcheck   # static analysis (includes gosimple in v2)
+    - unused        # unused code
+    - gocyclo       # cyclomatic complexity
+    - misspell      # typos in comments/strings
+    - revive        # idiomatic Go style
+
+  settings:
+    gocyclo:
+      min-complexity: 20
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+
+  exclusions:
+    rules:
+      # Test helpers commonly omit error checks on json encode/decode and w.Write —
+      # if encoding fails the test will fail for other observable reasons.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - revive
+      # defer resp.Body.Close() is idiomatic Go — the error is unactionable in a defer.
+      - text: "Error return value of `.*Body\\.Close` is not checked"
+        linters:
+          - errcheck
+      # defer rows.Close() and defer stmt.Close() are idiomatic for database code.
+      - text: "Error return value of `.*\\.Close` is not checked"
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - goimports     # import ordering
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/lobo235/homelab-chatbot
+
+issues:
+  max-same-issues: 0

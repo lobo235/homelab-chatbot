@@ -1,0 +1,4 @@
+.env
+homelab-chatbot
+coverage.out
+.claude/

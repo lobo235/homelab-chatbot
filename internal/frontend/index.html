@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homelab AI — Minecraft Server Manager</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-EwBbsianCE0fhFSBmtFAs4oGkLcgJuDgbqID0hCGEwji5MoYSB4MHhiWwvGBjmM" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-4gHXXv4HxSHF/RKyCwmsKTBItiKALfYz/M+C13Y0a+MgHFNoi1SDQ6iVBPMBdILN" crossorigin="anonymous"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0f23;--surface:#1a1a2e;--surface2:#16213e;--border:#2a2a4a;--text:#e0e0e0;--text-dim:#8888aa;--accent:#4fc3f7;--accent2:#81c784;--danger:#ef5350;--warning:#ffb74d;--radius:8px;--font:system-ui,-apple-system,sans-serif;--mono:'Fira Code',monospace}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+/* Layout */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:margin-left .2s}
+.sidebar.hidden{margin-left:-260px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.header h1{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.header-actions{display:flex;gap:8px;align-items:center}
+.btn{padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.85rem;transition:background .15s}
+.btn:hover{background:var(--border)}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-accent:hover{opacity:.85}
+.btn-danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn-sm{padding:4px 10px;font-size:.8rem}
+.icon-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;font-size:1.2rem;line-height:1}
+.icon-btn:hover{color:var(--text)}
+/* Sidebar content */
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.sidebar-header h2{font-size:.95rem;font-weight:600}
+.session-list{flex:1;overflow-y:auto;padding:8px}
+.session-item{padding:10px 12px;border-radius:var(--radius);cursor:pointer;margin-bottom:4px;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-item:hover{background:var(--surface2)}
+.session-item.active{background:var(--accent);color:#000}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+/* Server panel */
+.server-panel{border-top:1px solid var(--border);padding:12px;max-height:200px;overflow-y:auto}
+.server-panel h3{font-size:.8rem;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.server-entry{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.85rem}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-running{background:var(--accent2)}
+.status-starting{background:var(--warning)}
+.status-stopped{background:var(--danger)}
+.status-unknown{background:var(--text-dim)}
+.server-addr{font-size:.75rem;color:var(--text-dim);cursor:pointer}
+.server-addr:hover{color:var(--accent)}
+/* Chat area */
+.chat-area{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
+.message{margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto}
+.message-user{text-align:right}
+.message-user .bubble{background:var(--accent);color:#000;display:inline-block;padding:10px 16px;border-radius:var(--radius) var(--radius) 2px var(--radius);max-width:80%;text-align:left}
+.message-assistant .bubble{background:var(--surface);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)}
+.message-assistant .bubble p{margin-bottom:8px}
+.message-assistant .bubble p:last-child{margin-bottom:0}
+.message-assistant .bubble pre{background:var(--bg);padding:12px;border-radius:4px;overflow-x:auto;margin:8px 0;font-family:var(--mono);font-size:.85rem}
+.message-assistant .bubble code{font-family:var(--mono);font-size:.9em;background:var(--bg);padding:1px 4px;border-radius:3px}
+.message-assistant .bubble pre code{background:none;padding:0}
+/* Connect address highlight */
+.connect-addr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 16px;border-radius:var(--radius);margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.connect-addr span{font-size:1.1rem;font-weight:700;color:#a5d6a7;font-family:var(--mono)}
+.copy-btn{background:var(--accent2);color:#000;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.8rem;white-space:nowrap}
+.copy-btn:hover{opacity:.85}
+/* Tool call blocks */
+.tool-block{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;overflow:hidden}
+.tool-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:.85rem}
+.tool-header .tool-icon{font-size:1rem}
+.tool-header .tool-name{font-weight:600;color:var(--accent)}
+.tool-header .tool-status{margin-left:auto;font-size:.8rem}
+.tool-status.running{color:var(--warning)}
+.tool-status.done{color:var(--accent2)}
+.tool-status.failed{color:var(--danger)}
+.tool-body{padding:8px 12px;font-size:.8rem;color:var(--text-dim);border-top:1px solid var(--border);font-family:var(--mono)}
+/* Welcome panel */
+.welcome{max-width:700px;margin:60px auto;text-align:center;padding:20px}
+.welcome h2{font-size:1.5rem;margin-bottom:12px}
+.welcome p{color:var(--text-dim);margin-bottom:24px;font-size:1rem}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.chip{padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:20px;cursor:pointer;font-size:.9rem;transition:all .15s}
+.chip:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+/* Input area */
+.input-area{padding:12px 20px;background:var(--surface);border-top:1px solid var(--border)}
+.input-wrap{max-width:800px;margin:0 auto;display:flex;gap:8px;align-items:flex-end}
+.input-wrap textarea{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:.95rem;font-family:var(--font);resize:none;min-height:44px;max-height:200px;line-height:1.4}
+.input-wrap textarea:focus{outline:none;border-color:var(--accent)}
+.input-wrap textarea::placeholder{color:var(--text-dim)}
+/* Login page */
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;width:100%;max-width:380px}
+.login-card h1{text-align:center;margin-bottom:24px;font-size:1.3rem}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;margin-bottom:6px;font-size:.85rem;color:var(--text-dim)}
+.form-group input{width:100%;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:.95rem}
+.form-group input:focus{outline:none;border-color:var(--accent)}
+.login-error{color:var(--danger);font-size:.85rem;margin-bottom:12px;text-align:center}
+/* Admin panel */
+.admin-panel{padding:20px;max-width:900px;margin:0 auto}
+.admin-panel h2{margin-bottom:16px}
+.admin-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.admin-table th,.admin-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+.admin-table th{color:var(--text-dim);font-weight:600}
+/* Responsive */
+@media(max-width:768px){
+.sidebar{position:fixed;left:0;top:0;bottom:0;z-index:100;box-shadow:4px 0 20px rgba(0,0,0,.5)}
+.sidebar.hidden{margin-left:-260px}
+.chips{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding-bottom:8px}
+.chip{white-space:nowrap;flex-shrink:0}
+.tool-block .tool-body{display:none}
+}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+/* Mode toggle */
+.mode-toggle{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-dim)}
+.mode-toggle input[type="checkbox"]{accent-color:var(--accent)}
+/* Typing indicator */
+.typing{display:inline-block;padding:4px 0}
+.typing span{display:inline-block;width:6px;height:6px;background:var(--text-dim);border-radius:50%;margin:0 2px;animation:bounce .6s infinite alternate}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{to{transform:translateY(-6px);opacity:.4}}
+</style>
+</head>
+<body>
+<!-- Login View -->
+<div x-data="loginApp()" x-show="!$store.auth.loggedIn" x-cloak>
+  <div class="login-page">
+    <div class="login-card">
+      <h1>Homelab AI</h1>
+      <p style="text-align:center;color:var(--text-dim);margin-bottom:20px">Minecraft Server Manager</p>
+      <div x-show="error" class="login-error" x-text="error"></div>
+      <form @submit.prevent="login">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input id="username" type="text" x-model="username" placeholder="Enter username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" x-model="password" placeholder="Enter password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-accent" style="width:100%;padding:10px" :disabled="loading">
+          <span x-show="!loading">Sign In</span>
+          <span x-show="loading">Signing in...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Main Chat View -->
+<div x-data="chatApp()" x-show="$store.auth.loggedIn" x-cloak class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" :class="{'hidden': !sidebarOpen}">
+    <div class="sidebar-header">
+      <h2>Conversations</h2>
+      <button class="btn btn-sm btn-accent" @click="newConversation">+ New</button>
+    </div>
+    <div class="session-list">
+      <template x-for="s in sessions" :key="s.id">
+        <div class="session-item" :class="{'active': s.id === currentSession}" @click="loadSession(s.id)">
+          <span x-text="s.title || 'New chat'"></span>
+        </div>
+      </template>
+      <div x-show="sessions.length === 0" style="padding:20px;text-align:center;color:var(--text-dim);font-size:.85rem">No conversations yet</div>
+    </div>
+    <!-- Server panel -->
+    <div class="server-panel" x-show="servers.length > 0">
+      <h3>Your Servers</h3>
+      <template x-for="srv in servers" :key="srv.name">
+        <div class="server-entry">
+          <div class="status-dot" :class="'status-' + srv.status"></div>
+          <div>
+            <div x-text="srv.name" style="font-weight:600"></div>
+            <div class="server-addr" @click="copyText(srv.address)" x-text="srv.address" title="Click to copy"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="sidebar-footer">
+      <div class="mode-toggle" style="margin-bottom:8px">
+        <input type="checkbox" id="operatorMode" :checked="verbosityMode === 'operator'" @change="toggleMode">
+        <label for="operatorMode">Operator mode</label>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" @click="showAdmin = true" x-show="$store.auth.user?.role === 'admin'">Admin</button>
+        <button class="btn btn-sm btn-danger" @click="logout" style="margin-left:auto">Logout</button>
+      </div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:8px" x-text="'Signed in as ' + ($store.auth.user?.username || '')"></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="icon-btn" @click="sidebarOpen = !sidebarOpen" title="Toggle sidebar">&#9776;</button>
+        <h1>Homelab AI</h1>
+      </div>
+      <div class="header-actions">
+        <a href="/help" target="_blank" class="icon-btn" title="Help">?</a>
+      </div>
+    </div>
+
+    <!-- Chat messages -->
+    <div class="chat-area" x-ref="chatArea">
+      <!-- Welcome panel (shown when no messages) -->
+      <div x-show="messages.length === 0 && !streaming" class="welcome">
+        <h2>Hi! I'm your Minecraft server assistant.</h2>
+        <p>I can help you create, manage, and monitor Minecraft servers. Here are some things to try:</p>
+        <div class="chips">
+          <template x-for="chip in promptChips" :key="chip">
+            <div class="chip" @click="sendChip(chip)" x-text="chip"></div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <template x-for="(msg, idx) in messages" :key="idx">
+        <div class="message" :class="'message-' + msg.role">
+          <div class="bubble" x-html="msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content"></div>
+        </div>
+      </template>
+
+      <!-- Streaming response -->
+      <div x-show="streaming" class="message message-assistant">
+        <div class="bubble">
+          <!-- Tool call blocks -->
+          <template x-for="(tool, ti) in toolCalls" :key="ti">
+            <div class="tool-block">
+              <div class="tool-header" @click="tool.expanded = !tool.expanded">
+                <span class="tool-icon">&#9881;</span>
+                <span class="tool-name" x-text="tool.name"></span>
+                <span class="tool-status" :class="tool.status" x-text="tool.status === 'running' ? 'Running...' : tool.status === 'done' ? 'Done' : 'Failed'"></span>
+              </div>
+              <div class="tool-body" x-show="tool.expanded" x-text="tool.message || tool.name"></div>
+            </div>
+          </template>
+          <!-- Streamed text -->
+          <div x-html="renderMarkdown(streamBuffer)"></div>
+          <div x-show="streamBuffer === '' && toolCalls.length === 0" class="typing"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea
+          x-ref="input"
+          x-model="inputText"
+          @keydown.enter.exact.prevent="sendMessage"
+          @keydown.shift.enter=""
+          @keydown.escape="cancelStream"
+          @keydown.ctrl./="$refs.input.focus()"
+          placeholder="Ask me about Minecraft servers..."
+          rows="1"
+          @input="autoResize($event)"
+          :disabled="streaming"
+        ></textarea>
+        <button class="btn btn-accent" @click="sendMessage" :disabled="streaming || !inputText.trim()">
+          <span x-show="!streaming">Send</span>
+          <span x-show="streaming">...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin overlay -->
+  <div x-show="showAdmin" @click.self="showAdmin = false" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div class="admin-panel" style="background:var(--surface);border-radius:var(--radius);max-height:80vh;overflow-y:auto;width:100%;max-width:800px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <h2 style="margin:0">Admin Panel</h2>
+        <button class="icon-btn" @click="showAdmin = false" style="font-size:1.4rem">&times;</button>
+      </div>
+      <div style="padding:20px">
+        <h3 style="margin-bottom:12px">Users</h3>
+        <table class="admin-table">
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Active</th><th>Servers</th><th>Actions</th></tr></thead>
+          <tbody>
+            <template x-for="u in adminUsers" :key="u.id">
+              <tr>
+                <td x-text="u.id"></td>
+                <td x-text="u.username"></td>
+                <td x-text="u.role"></td>
+                <td x-text="u.active ? 'Yes' : 'No'"></td>
+                <td x-text="u.max_servers"></td>
+                <td>
+                  <button class="btn btn-sm" @click="toggleUserActive(u)">
+                    <span x-text="u.active ? 'Deactivate' : 'Activate'"></span>
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <div style="margin-top:20px">
+          <h3 style="margin-bottom:12px">Create User</h3>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-group" style="margin:0">
+              <label>Username</label>
+              <input type="text" x-model="newUser.username" style="width:140px">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Password</label>
+              <input type="password" x-model="newUser.password" style="width:140px">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Role</label>
+              <select x-model="newUser.role" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius)">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button class="btn btn-accent btn-sm" @click="createUser">Create</button>
+          </div>
+        </div>
+        <div style="margin-top:20px">
+          <h3 style="margin-bottom:12px">Token Usage</h3>
+          <table class="admin-table">
+            <thead><tr><th>User</th><th>Total Tokens</th></tr></thead>
+            <tbody>
+              <template x-for="u in adminUsage" :key="u.user_id">
+                <tr><td x-text="u.username"></td><td x-text="u.total_tokens.toLocaleString()"></td></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Configure marked.
+marked.setOptions({breaks: true, gfm: true});
+
+// Auth store.
+document.addEventListener('alpine:init', () => {
+  Alpine.store('auth', {
+    loggedIn: false,
+    user: null,
+    init() {
+      fetch('/api/auth/me').then(r => {
+        if (r.ok) return r.json();
+        throw new Error('not logged in');
+      }).then(user => {
+        this.user = user;
+        this.loggedIn = true;
+      }).catch(() => {});
+    }
+  });
+});
+
+function loginApp() {
+  return {
+    username: '',
+    password: '',
+    error: '',
+    loading: false,
+    async login() {
+      this.loading = true;
+      this.error = '';
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: this.username, password: this.password})
+        });
+        if (!r.ok) {
+          const e = await r.json();
+          throw new Error(e.message || 'Login failed');
+        }
+        const data = await r.json();
+        Alpine.store('auth').user = data.user;
+        Alpine.store('auth').loggedIn = true;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading = false;
+      }
+    }
+  };
+}
+
+function chatApp() {
+  return {
+    sidebarOpen: window.innerWidth > 768,
+    showAdmin: false,
+    messages: [],
+    sessions: [],
+    servers: [],
+    currentSession: null,
+    inputText: '',
+    streaming: false,
+    streamBuffer: '',
+    toolCalls: [],
+    abortController: null,
+    verbosityMode: 'kid',
+    adminUsers: [],
+    adminUsage: [],
+    newUser: {username: '', password: '', role: 'user'},
+
+    get promptChips() {
+      if (this.verbosityMode === 'operator') {
+        return [
+          'List all running Nomad jobs',
+          'Show me the HCL spec for a server',
+          'Provision a new ATM10 server',
+          'Show gateway health status',
+          'Tail logs for a server',
+        ];
+      }
+      return [
+        'Start a new Minecraft server for me',
+        'What Minecraft servers do we have?',
+        'Back up my server',
+        "Who's playing on my server?",
+        'Stop my server for tonight',
+        'Op my friend on my server',
+      ];
+    },
+
+    init() {
+      this.$watch('$store.auth.loggedIn', (v) => {
+        if (v) {
+          this.verbosityMode = Alpine.store('auth').user?.verbosity_mode || 'kid';
+          this.loadSessions();
+          this.loadServers();
+        }
+      });
+      // Global keyboard shortcut.
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === '/') {
+          e.preventDefault();
+          this.$refs.input?.focus();
+        }
+      });
+      // Auto-refresh servers every 30s.
+      setInterval(() => {
+        if (Alpine.store('auth').loggedIn) this.loadServers();
+      }, 30000);
+    },
+
+    renderMarkdown(text) {
+      if (!text) return '';
+      let html = marked.parse(text);
+      // Highlight "Connect at: <hostname>" pattern.
+      html = html.replace(/Connect at:\s*([^\s<]+)/g,
+        '<div class="connect-addr"><span>$1</span><button class="copy-btn" onclick="navigator.clipboard.writeText(\'$1\')">Copy</button></div>');
+      return html;
+    },
+
+    autoResize(e) {
+      const el = e.target;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+    },
+
+    async loadSessions() {
+      try {
+        const r = await fetch('/api/sessions');
+        if (r.ok) this.sessions = await r.json();
+      } catch {}
+    },
+
+    async loadServers() {
+      try {
+        const r = await fetch('/api/servers');
+        if (r.ok) this.servers = await r.json();
+      } catch {}
+    },
+
+    async loadSession(id) {
+      try {
+        const r = await fetch(`/api/sessions/${id}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        this.currentSession = id;
+        this.messages = data.messages.map(m => ({role: m.role, content: m.content}));
+        this.scrollToBottom();
+      } catch {}
+    },
+
+    newConversation() {
+      this.currentSession = null;
+      this.messages = [];
+      this.streamBuffer = '';
+      this.toolCalls = [];
+    },
+
+    sendChip(text) {
+      this.inputText = text;
+      this.sendMessage();
+    },
+
+    async sendMessage() {
+      const text = this.inputText.trim();
+      if (!text || this.streaming) return;
+
+      this.messages.push({role: 'user', content: text});
+      this.inputText = '';
+      this.streaming = true;
+      this.streamBuffer = '';
+      this.toolCalls = [];
+      this.scrollToBottom();
+
+      // Reset textarea height.
+      if (this.$refs.input) this.$refs.input.style.height = 'auto';
+
+      this.abortController = new AbortController();
+
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            message: text,
+            conversation_id: this.currentSession || 0,
+            verbosity_mode: this.verbosityMode,
+          }),
+          signal: this.abortController.signal,
+        });
+
+        // Get conversation ID from header.
+        const convId = r.headers.get('X-Conversation-ID');
+        if (convId) this.currentSession = parseInt(convId);
+
+        if (!r.ok) {
+          const err = await r.json();
+          this.messages.push({role: 'assistant', content: `Error: ${err.message || 'Something went wrong'}`});
+          this.streaming = false;
+          return;
+        }
+
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              this.handleSSE(event);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          this.messages.push({role: 'assistant', content: 'Error: Connection lost. Please try again.'});
+        }
+      }
+
+      // Finalize streaming.
+      if (this.streamBuffer) {
+        this.messages.push({role: 'assistant', content: this.streamBuffer});
+      }
+      this.streaming = false;
+      this.streamBuffer = '';
+      this.toolCalls = [];
+      this.loadSessions();
+      this.loadServers();
+      this.scrollToBottom();
+    },
+
+    handleSSE(event) {
+      switch (event.type) {
+        case 'token':
+          this.streamBuffer += event.content;
+          this.scrollToBottom();
+          break;
+        case 'tool_start':
+          this.toolCalls.push({name: event.name, message: event.message, status: 'running', expanded: true});
+          this.scrollToBottom();
+          break;
+        case 'tool_done':
+          const tool = this.toolCalls.find(t => t.name === event.name && t.status === 'running');
+          if (tool) tool.status = event.status;
+          break;
+        case 'error':
+          this.streamBuffer += `\n\nError: ${event.message}`;
+          break;
+        case 'done':
+          break;
+      }
+    },
+
+    cancelStream() {
+      if (this.abortController) {
+        this.abortController.abort();
+        this.streaming = false;
+      }
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.chatArea;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    toggleMode() {
+      this.verbosityMode = this.verbosityMode === 'operator' ? 'kid' : 'operator';
+    },
+
+    copyText(text) {
+      navigator.clipboard.writeText(text);
+    },
+
+    async logout() {
+      await fetch('/api/auth/logout', {method: 'POST'});
+      Alpine.store('auth').loggedIn = false;
+      Alpine.store('auth').user = null;
+      this.messages = [];
+      this.sessions = [];
+      this.currentSession = null;
+    },
+
+    // Admin functions.
+    async loadAdminData() {
+      try {
+        const [users, usage] = await Promise.all([
+          fetch('/admin/users').then(r => r.json()),
+          fetch('/admin/usage').then(r => r.json()),
+        ]);
+        this.adminUsers = users;
+        this.adminUsage = usage || [];
+      } catch {}
+    },
+
+    async toggleUserActive(user) {
+      await fetch(`/admin/users/${user.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({active: !user.active}),
+      });
+      this.loadAdminData();
+    },
+
+    async createUser() {
+      if (!this.newUser.username || !this.newUser.password) return;
+      await fetch('/admin/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(this.newUser),
+      });
+      this.newUser = {username: '', password: '', role: 'user'};
+      this.loadAdminData();
+    },
+  };
+}
+</script>
+</body>
+</html>
