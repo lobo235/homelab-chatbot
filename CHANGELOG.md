@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Removed `MC_PUBLIC_IP` from deploy spec (now optional upstream)
 
+## [v1.0.1] - 2026-03-23
+
+### Fixed
+- Correct SRI integrity hashes for Alpine.js, marked.js, and DOMPurify CDN scripts — all three had invalid hashes, preventing the frontend from functioning
+- Add `[x-cloak]` CSS rule to prevent flash of unstyled content before Alpine.js initializes
+- Add `x-cloak` to admin overlay to prevent it from covering the page on load
+- Load admin panel data (`loadAdminData`) when the panel is opened
+- Prevent 1Password autofill on admin Create User form (`autocomplete="off"`, `data-1p-ignore`)
+
 ## [v1.0.0] - 2026-03-23
 
 ### Added

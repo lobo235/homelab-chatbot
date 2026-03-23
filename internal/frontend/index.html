@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Homelab AI — Minecraft Server Manager</title>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-EwBbsianCE0fhFSBmtFAs4oGkLcgJuDgbqID0hCGEwji5MoYSB4MHhiWwvGBjmM" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-4gHXXv4HxSHF/RKyCwmsKTBItiKALfYz/M+C13Y0a+MgHFNoi1SDQ6iVBPMBdILN" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.5/dist/purify.min.js" integrity="sha384-MdAOXBNwFOcYaKsLxBCQFpBahqGGnpHRsaNbt5xBKIcNMLMx3CFJQT72lQkKPGR" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-H+hy9ULve6xfxRkWIh/YOtvDdpXgV2fmAGQkIDTxIgZwNoaoBal14Di2YTMR6MzR" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.5/dist/purify.min.js" integrity="sha384-qSFej5dZNviyoPgYJ5+Xk4bEbX8AYddxAHPuzs1aSgRiXxJ3qmyWNaPsRkpv/+x5" crossorigin="anonymous"></script>
 <style>
+[x-cloak]{display:none!important}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0f0f23;--surface:#1a1a2e;--surface2:#16213e;--border:#2a2a4a;--text:#e0e0e0;--text-dim:#8888aa;--accent:#4fc3f7;--accent2:#81c784;--danger:#ef5350;--warning:#ffb74d;--radius:8px;--font:system-ui,-apple-system,sans-serif;--mono:'Fira Code',monospace}
 html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
@@ -272,7 +273,7 @@ a:hover{text-decoration:underline}
   </div>
 
   <!-- Admin overlay -->
-  <div x-show="showAdmin" @click.self="showAdmin = false" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div x-show="showAdmin" x-cloak @click.self="showAdmin = false" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
     <div class="admin-panel" style="background:var(--surface);border-radius:var(--radius);max-height:80vh;overflow-y:auto;width:100%;max-width:800px;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">
         <h2 style="margin:0">Admin Panel</h2>
@@ -304,11 +305,11 @@ a:hover{text-decoration:underline}
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-group" style="margin:0">
               <label>Username</label>
-              <input type="text" x-model="newUser.username" style="width:140px">
+              <input type="text" x-model="newUser.username" autocomplete="off" data-1p-ignore style="width:140px">
             </div>
             <div class="form-group" style="margin:0">
               <label>Password</label>
-              <input type="password" x-model="newUser.password" style="width:140px">
+              <input type="password" x-model="newUser.password" autocomplete="new-password" data-1p-ignore style="width:140px">
             </div>
             <div class="form-group" style="margin:0">
               <label>Role</label>
@@ -433,6 +434,9 @@ function chatApp() {
           this.loadSessions();
           this.loadServers();
         }
+      });
+      this.$watch('showAdmin', (v) => {
+        if (v) this.loadAdminData();
       });
       // Global keyboard shortcut.
       document.addEventListener('keydown', (e) => {
