@@ -88,12 +88,12 @@ EOF
         CLAUDE_MODEL           = "claude-sonnet-4-6"
 
         # Gateway URLs (used by chatbot admin + forwarded to MCP subprocess)
-        NOMAD_GATEWAY_URL      = "http://nomad-gateway.example.com"
-        ADGUARD_GATEWAY_URL    = "http://adguard-home-gateway.example.com"
-        CF_GATEWAY_URL         = "http://cloudflare-gateway.example.com"
-        MINECRAFT_GATEWAY_URL  = "http://minecraft-gateway.example.com"
-        CURSEFORGE_GATEWAY_URL = "http://curseforge-gateway.example.com"
-        VAULT_GATEWAY_URL      = "http://vault-gateway.example.com"
+        NOMAD_GATEWAY_URL      = "https://nomad-gateway.example.com"
+        ADGUARD_GATEWAY_URL    = "https://adguard-home-gateway.example.com"
+        CF_GATEWAY_URL         = "https://cloudflare-gateway.example.com"
+        MINECRAFT_GATEWAY_URL  = "https://minecraft-gateway.example.com"
+        CURSEFORGE_GATEWAY_URL = "https://curseforge-gateway.example.com"
+        VAULT_GATEWAY_URL      = "https://vault-gateway.example.com"
 
         # MCP server config (forwarded to subprocess)
         NOMAD_DEFAULT_DATACENTER = "dc1"
