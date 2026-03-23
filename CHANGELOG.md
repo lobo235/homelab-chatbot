@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.1.1] - 2026-03-23
+
+### Fixed
+- Use HTTPS for gateway URLs in deploy spec to match Traefik TLS termination
+- Harden system prompt to prevent Claude from exposing internal hostnames, IPs, and filesystem paths in error responses
+
+## [v1.1.0] - 2026-03-23
+
 ### Added
 - MCP server config env vars in deploy spec (datacenter, node pool, NFS path, DNS config)
 - Agentic tool execution loop: Claude can now call MCP tools and receive results in a multi-turn conversation (up to 20 rounds per request)
