@@ -69,8 +69,8 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	// Frontend (catch-all for SPA).
 	mux.HandleFunc("GET /", frontend.HandleIndex)
 
-	// Request logging middleware wrapping all routes.
-	handler := requestLogger(mux, log)
+	// Security headers and request logging middleware wrapping all routes.
+	handler := securityHeaders(requestLogger(mux, log))
 
 	return &Server{
 		httpServer: &http.Server{
@@ -117,6 +117,18 @@ func (rw *responseWriter) Flush() {
 	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	csp := "default-src 'self'; " +
+		"script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"connect-src 'self'; " +
+		"img-src 'self' data:"
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", csp)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func requestLogger(next http.Handler, log *slog.Logger) http.Handler {

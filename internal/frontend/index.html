@@ -445,14 +445,21 @@ function chatApp() {
       setInterval(() => {
         if (Alpine.store('auth').loggedIn) this.loadServers();
       }, 30000);
+      // Event delegation for copy buttons rendered in markdown.
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.copy-btn[data-copy]');
+        if (btn) {
+          navigator.clipboard.writeText(btn.dataset.copy);
+        }
+      });
     },
 
     renderMarkdown(text) {
       if (!text) return '';
-      let html = DOMPurify.sanitize(marked.parse(text), {ADD_ATTR: ['onclick']});
-      // Highlight "Connect at: <hostname>" pattern.
+      let html = DOMPurify.sanitize(marked.parse(text));
+      // Highlight "Connect at: <hostname>" pattern with copy button (handler attached via event delegation).
       html = html.replace(/Connect at:\s*([^\s<]+)/g,
-        '<div class="connect-addr"><span>$1</span><button class="copy-btn" onclick="navigator.clipboard.writeText(\'$1\')">Copy</button></div>');
+        '<div class="connect-addr"><span>$1</span><button class="copy-btn" data-copy="$1">Copy</button></div>');
       return html;
     },
 
