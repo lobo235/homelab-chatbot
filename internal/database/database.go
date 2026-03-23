@@ -81,7 +81,14 @@ func Open(dataDir string, log *slog.Logger) (*DB, error) {
 
 	dsn := ":memory:"
 	if dataDir != ":memory:" {
-		dsn = filepath.Join(dataDir, "chatbot.db") + "?_journal_mode=WAL&_busy_timeout=5000"
+		dbPath := filepath.Join(dataDir, "chatbot.db")
+		dsn = dbPath + "?_journal_mode=WAL&_busy_timeout=5000"
+
+		// Ensure DB file has restrictive permissions (0600) — contains user
+		// credentials, session hashes, and conversation history.
+		if err := ensureFilePermissions(dbPath, 0600); err != nil {
+			return nil, fmt.Errorf("set db permissions: %w", err)
+		}
 	}
 
 	sqlDB, err := sql.Open("sqlite", dsn)
@@ -567,4 +574,16 @@ func (d *DB) GetTokenUsage() ([]*TokenUsage, error) {
 		usage = append(usage, u)
 	}
 	return usage, rows.Err()
+}
+
+// ensureFilePermissions creates the file if it doesn't exist and sets
+// its permissions to the given mode. If the file already exists, it
+// only adjusts permissions.
+func ensureFilePermissions(path string, mode os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	f.Close()
+	return os.Chmod(path, mode)
 }

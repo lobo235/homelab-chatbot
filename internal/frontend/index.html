@@ -6,6 +6,7 @@
 <title>Homelab AI — Minecraft Server Manager</title>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-EwBbsianCE0fhFSBmtFAs4oGkLcgJuDgbqID0hCGEwji5MoYSB4MHhiWwvGBjmM" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-4gHXXv4HxSHF/RKyCwmsKTBItiKALfYz/M+C13Y0a+MgHFNoi1SDQ6iVBPMBdILN" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.5/dist/purify.min.js" integrity="sha384-MdAOXBNwFOcYaKsLxBCQFpBahqGGnpHRsaNbt5xBKIcNMLMx3CFJQT72lQkKPGR" crossorigin="anonymous"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0f0f23;--surface:#1a1a2e;--surface2:#16213e;--border:#2a2a4a;--text:#e0e0e0;--text-dim:#8888aa;--accent:#4fc3f7;--accent2:#81c784;--danger:#ef5350;--warning:#ffb74d;--radius:8px;--font:system-ui,-apple-system,sans-serif;--mono:'Fira Code',monospace}
@@ -222,7 +223,7 @@ a:hover{text-decoration:underline}
       <!-- Messages -->
       <template x-for="(msg, idx) in messages" :key="idx">
         <div class="message" :class="'message-' + msg.role">
-          <div class="bubble" x-html="msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content"></div>
+          <div class="bubble" x-html="msg.role === 'assistant' ? renderMarkdown(msg.content) : DOMPurify.sanitize(msg.content)"></div>
         </div>
       </template>
 
@@ -448,7 +449,7 @@ function chatApp() {
 
     renderMarkdown(text) {
       if (!text) return '';
-      let html = marked.parse(text);
+      let html = DOMPurify.sanitize(marked.parse(text), {ADD_ATTR: ['onclick']});
       // Highlight "Connect at: <hostname>" pattern.
       html = html.replace(/Connect at:\s*([^\s<]+)/g,
         '<div class="connect-addr"><span>$1</span><button class="copy-btn" onclick="navigator.clipboard.writeText(\'$1\')">Copy</button></div>');
