@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.10] - 2026-03-24
+
+### Added
+- System prompt identifies mc-router as infrastructure (itzg/mc-router reverse proxy), not a Minecraft server — prevents RCON calls, backup attempts, and inclusion in server listings
+
 ## [v1.5.9] - 2026-03-24
 
 ### Added
