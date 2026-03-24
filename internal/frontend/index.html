@@ -433,6 +433,7 @@ function chatApp() {
     inputText: '',
     streaming: false,
     streamBuffer: '',
+    afterToolDone: false,
     toolCalls: [],
     abortController: null,
     rateLimitMessage: '',
@@ -538,7 +539,7 @@ function chatApp() {
     newConversation() {
       this.currentSession = null;
       this.messages = [];
-      this.streamBuffer = '';
+      this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
     },
 
@@ -554,7 +555,7 @@ function chatApp() {
       this.messages.push({role: 'user', content: text});
       this.inputText = '';
       this.streaming = true;
-      this.streamBuffer = '';
+      this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.scrollToBottom();
 
@@ -617,7 +618,7 @@ function chatApp() {
         // Flush any partial text before the retry continues.
         if (this.streamBuffer) {
           this.messages.push({role: 'assistant', content: this.streamBuffer});
-          this.streamBuffer = '';
+          this.streamBuffer = ''; this.afterToolDone = false;
         }
         return;
       }
@@ -627,7 +628,7 @@ function chatApp() {
         this.messages.push({role: 'assistant', content: this.streamBuffer});
       }
       this.streaming = false;
-      this.streamBuffer = '';
+      this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.rateLimitMessage = '';
       this.loadSessions();
@@ -639,6 +640,11 @@ function chatApp() {
       switch (event.type) {
         case 'token':
           this.rateLimitMessage = '';
+          // Add paragraph break if resuming text after tool activity.
+          if (this.afterToolDone && this.streamBuffer && event.content.trim()) {
+            this.streamBuffer += '\n\n';
+          }
+          this.afterToolDone = false;
           this.streamBuffer += event.content;
           this.scrollToBottom();
           break;
@@ -650,6 +656,7 @@ function chatApp() {
         case 'tool_done':
           const tool = this.toolCalls.find(t => t.name === event.name && t.status === 'running');
           if (tool) tool.status = event.status;
+          this.afterToolDone = true;
           break;
         case 'rate_limit':
           this.rateLimitMessage = event.message;
@@ -762,7 +769,7 @@ function chatApp() {
         this.messages.push({role: 'assistant', content: this.streamBuffer});
       }
       this.streaming = false;
-      this.streamBuffer = '';
+      this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.rateLimitMessage = '';
       this.loadSessions();
