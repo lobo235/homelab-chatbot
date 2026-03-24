@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/lobo235/homelab-chatbot/internal/auth"
 	"github.com/lobo235/homelab-chatbot/internal/chat"
@@ -338,16 +339,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 				Message: fmt.Sprintf("tool=%s duration=%dms status=%s result_len=%d", tu.Name, toolDuration.Milliseconds(), status, len(fmt.Sprint(toolResult))),
 			})
 
-			// Cap tool result size to prevent token spikes from large outputs (e.g., 50KB logs).
-			resultStr := fmt.Sprint(toolResult)
-			const maxToolResultLen = 8192
-			if len(resultStr) > maxToolResultLen {
-				resultStr = resultStr[:maxToolResultLen] + "\n... [truncated — " + fmt.Sprintf("%d", len(resultStr)-maxToolResultLen) + " bytes omitted]"
-				sendEvent(chat.SSEEvent{
-					Type:    "debug",
-					Message: fmt.Sprintf("tool_result truncated from %d to %d bytes", len(fmt.Sprint(toolResult)), maxToolResultLen),
-				})
-			}
+			resultStr := truncateToolResult(fmt.Sprint(toolResult), sendEvent)
 
 			toolResults = append(toolResults, map[string]interface{}{
 				"type":        "tool_result",
@@ -588,6 +580,24 @@ func (h *Handlers) HandleGetMe(w http.ResponseWriter, r *http.Request) {
 		"max_servers":    user.MaxServers,
 		"max_tokens":     user.MaxTokens,
 	})
+}
+
+// truncateToolResult caps a tool result string at maxToolResultLen bytes to prevent
+// token spikes from large outputs (e.g., 50KB logs). Truncates at a rune boundary.
+func truncateToolResult(s string, sendEvent func(chat.SSEEvent)) string {
+	const maxToolResultLen = 8192
+	if len(s) <= maxToolResultLen {
+		return s
+	}
+	truncated := s[:maxToolResultLen]
+	for len(truncated) > 0 && !utf8.Valid([]byte(truncated)) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	sendEvent(chat.SSEEvent{
+		Type:    "debug",
+		Message: fmt.Sprintf("tool_result truncated from %d to %d bytes", len(s), len(truncated)),
+	})
+	return truncated + "\n... [truncated — " + fmt.Sprintf("%d", len(s)-len(truncated)) + " bytes omitted]"
 }
 
 // trimContext applies a sliding window to keep API token usage bounded.

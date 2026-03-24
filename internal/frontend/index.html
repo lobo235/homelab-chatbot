@@ -319,10 +319,8 @@ a:hover{text-decoration:underline}
           rows="1"
           @input="autoResize($event)"
         ></textarea>
-        <button class="btn btn-accent" @click="sendMessage" :disabled="streaming || !inputText.trim()">
-          <span x-show="!streaming">Send</span>
-          <span x-show="streaming">...</span>
-        </button>
+        <button x-show="!streaming" class="btn btn-accent" @click="sendMessage" :disabled="!inputText.trim()">Send</button>
+        <button x-show="streaming" class="btn btn-danger" @click="cancelStream">Stop</button>
       </div>
     </div>
   </div>
