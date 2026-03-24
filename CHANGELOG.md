@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.11] - 2026-03-24
+
+### Changed
+- System prompt prohibits `watch_job_health` in interactive sessions — use instant `get_minecraft_server_status` instead to avoid blocking SSE connections for minutes
+- System prompt includes server startup time guidance (1-2 min vanilla, 3-5 min modpacks) so Claude tells users when to check back
+
 ## [v1.5.10] - 2026-03-24
 
 ### Added
