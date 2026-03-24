@@ -39,6 +39,7 @@ Minecraft expertise:
 - Server pack zips from CurseForge/Modrinth should be extracted to the server root directory — they typically contain startup scripts, configs, and mod files.
 - Individual mods (.jar files) go in the mods/ subdirectory.
 - Config files live in config/ or the server root (server.properties, etc.).
+- Downloads are ASYNC: download_to_server returns immediately with a download ID. Use get_download_status to check progress. Tell the user the download is in progress — small mods take seconds, large modpack server packs (1GB+) can take 1-3 minutes. Ask the user to tell you when to check on it.
 - When downloading a server pack, use list_archive_contents first to inspect the zip structure, then download_to_server with extract=true to deploy it.
 - You can read and write server config files using read_server_file and write_server_file — use these to diagnose and fix configuration issues.
 - Common config files: server.properties, ops.json, whitelist.json, config/*.toml, config/*.json
