@@ -101,8 +101,7 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `DATA_DIR` | no | `/data` | Directory for SQLite DB |
 | `PORT` | no | `8080` | Listen port |
 | `LOG_LEVEL` | no | `info` | Verbosity: `debug`, `info`, `warn`, `error` |
-| `CONTEXT_WINDOW_SIZE` | no | `20` | Recent messages to keep in full when trimming context |
-| `TOOL_RESULT_MAX_LEN` | no | `500` | Max chars for old tool results before truncation |
+| `CONTEXT_WINDOW_SIZE` | no | `20` | Recent messages to keep in sliding window (older messages dropped) |
 | `NOMAD_GATEWAY_URL` | no | — | Nomad gateway base URL (for admin server stop) |
 | `NOMAD_GATEWAY_KEY` | no | — | Nomad gateway API key |
 | `ADGUARD_GATEWAY_URL` | no | — | AdGuard gateway base URL |

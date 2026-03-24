@@ -24,7 +24,6 @@ type Handlers struct {
 	Log               *slog.Logger
 	Version           string
 	ContextWindowSize int
-	ToolResultMaxLen  int
 }
 
 // HandleLogin processes POST /api/auth/login.
@@ -96,7 +95,7 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 
 	if conv.InputTokens >= int64(user.MaxTokens) {
 		writeError(w, http.StatusTooManyRequests, "token_limit",
-			fmt.Sprintf("Token limit reached (%d/%d). Start a new conversation.", conv.InputTokens, user.MaxTokens))
+			fmt.Sprintf("Token limit reached (%d/%d). Please start a new conversation to reset usage.", conv.InputTokens, user.MaxTokens))
 		return
 	}
 
@@ -535,19 +534,14 @@ func (h *Handlers) HandleGetMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// trimContext applies a sliding window and truncates old tool results to reduce
-// token usage on subsequent API calls. It keeps the first user message (for
-// context) plus the last ContextWindowSize messages. For messages outside the
-// recent window, tool_result content blocks are truncated to ToolResultMaxLen.
-// tool_use / tool_result pairs are never split.
+// trimContext applies a sliding window to keep API token usage bounded.
+// It keeps the first user message (for context) plus the last ContextWindowSize
+// messages. Messages in between are dropped entirely. tool_use / tool_result
+// pairs are never split.
 func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) []chat.AnthropicMessage {
 	windowSize := h.ContextWindowSize
 	if windowSize <= 0 {
 		windowSize = 20
-	}
-	maxLen := h.ToolResultMaxLen
-	if maxLen <= 0 {
-		maxLen = 500
 	}
 
 	if len(msgs) <= windowSize {
@@ -568,16 +562,9 @@ func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) []chat.AnthropicMes
 		cutIdx--
 	}
 
-	// Build result: first message + (optionally truncated middle) + recent window.
+	// Build result: first message + recent window. Middle messages are dropped.
 	result := make([]chat.AnthropicMessage, 0, 1+len(msgs)-cutIdx)
 	result = append(result, msgs[0])
-
-	// Middle messages (between first and window) get tool results truncated.
-	for i := 1; i < cutIdx; i++ {
-		result = append(result, truncateToolResults(msgs[i], maxLen))
-	}
-
-	// Recent window: keep as-is.
 	result = append(result, msgs[cutIdx:]...)
 
 	return result
@@ -599,44 +586,4 @@ func isToolResultMessage(msg chat.AnthropicMessage) bool {
 		}
 	}
 	return false
-}
-
-// truncateToolResults truncates tool_result content to maxLen characters.
-func truncateToolResults(msg chat.AnthropicMessage, maxLen int) chat.AnthropicMessage {
-	arr, ok := msg.Content.([]interface{})
-	if !ok {
-		return msg
-	}
-
-	newContent := make([]interface{}, len(arr))
-	changed := false
-	for i, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			newContent[i] = item
-			continue
-		}
-		if m["type"] != "tool_result" {
-			newContent[i] = item
-			continue
-		}
-		content, ok := m["content"].(string)
-		if !ok || len(content) <= maxLen {
-			newContent[i] = item
-			continue
-		}
-		// Clone the map and truncate.
-		newMap := make(map[string]interface{}, len(m))
-		for k, v := range m {
-			newMap[k] = v
-		}
-		newMap["content"] = content[:maxLen] + "... [truncated]"
-		newContent[i] = newMap
-		changed = true
-	}
-
-	if !changed {
-		return msg
-	}
-	return chat.AnthropicMessage{Role: msg.Role, Content: newContent}
 }

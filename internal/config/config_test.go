@@ -61,24 +61,17 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.ContextWindowSize != 20 {
 		t.Errorf("got ContextWindowSize=%d, want 20", cfg.ContextWindowSize)
 	}
-	if cfg.ToolResultMaxLen != 500 {
-		t.Errorf("got ToolResultMaxLen=%d, want 500", cfg.ToolResultMaxLen)
-	}
 }
 
 func TestLoad_CustomIntDefaults(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("CONTEXT_WINDOW_SIZE", "30")
-	t.Setenv("TOOL_RESULT_MAX_LEN", "1000")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if cfg.ContextWindowSize != 30 {
 		t.Errorf("got ContextWindowSize=%d, want 30", cfg.ContextWindowSize)
-	}
-	if cfg.ToolResultMaxLen != 1000 {
-		t.Errorf("got ToolResultMaxLen=%d, want 1000", cfg.ToolResultMaxLen)
 	}
 }
 

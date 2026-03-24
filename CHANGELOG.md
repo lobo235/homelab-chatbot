@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.1] - 2026-03-24
+
+### Changed
+- Context trimming now drops old messages entirely instead of truncating tool results — keeps conversations within API context limits indefinitely
+- Removed `TOOL_RESULT_MAX_LEN` config (no longer needed)
+
 ## [v1.5.0] - 2026-03-24
 
 ### Added

@@ -81,7 +81,7 @@ func main() {
 	chatSvc := chat.NewService(cfg.AnthropicAPIKey, cfg.ClaudeModel, mcpProc, log)
 
 	// Create and start HTTP server.
-	srv := api.NewServer(db, authSvc, chatSvc, mcpClient, cfg.Gateways, version, cfg.ContextWindowSize, cfg.ToolResultMaxLen, log)
+	srv := api.NewServer(db, authSvc, chatSvc, mcpClient, cfg.Gateways, version, cfg.ContextWindowSize, log)
 
 	addr := ":" + cfg.Port
 	if err := srv.Run(ctx, addr); err != nil {

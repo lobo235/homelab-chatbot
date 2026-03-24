@@ -27,7 +27,6 @@ type Config struct {
 	Port              string
 	LogLevel          string
 	ContextWindowSize int
-	ToolResultMaxLen  int
 	Gateways          []GatewayConfig
 }
 
@@ -43,7 +42,6 @@ func Load() (*Config, error) {
 		Port:              envOr("PORT", "8080"),
 		LogLevel:          envOr("LOG_LEVEL", "info"),
 		ContextWindowSize: envOrInt("CONTEXT_WINDOW_SIZE", 20),
-		ToolResultMaxLen:  envOrInt("TOOL_RESULT_MAX_LEN", 500),
 	}
 
 	// Load gateway configs from env vars (same ones passed to MCP subprocess).
