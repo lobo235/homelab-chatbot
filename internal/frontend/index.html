@@ -230,7 +230,7 @@ a:hover{text-decoration:underline}
       </template>
     </div>
     <div class="sidebar-footer">
-      <div class="mode-toggle" style="margin-bottom:8px">
+      <div class="mode-toggle" style="margin-bottom:8px" x-show="$store.auth.user?.role === 'admin'">
         <input type="checkbox" id="operatorMode" :checked="verbosityMode === 'operator'" @change="toggleMode">
         <label for="operatorMode">Operator mode</label>
       </div>
@@ -335,7 +335,7 @@ a:hover{text-decoration:underline}
       <div style="padding:20px">
         <h3 style="margin-bottom:12px">Users</h3>
         <table class="admin-table">
-          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Active</th><th>Servers</th><th>Token Limit</th><th>Actions</th></tr></thead>
+          <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Active</th><th>Max Servers</th><th>Token Limit</th><th>Actions</th></tr></thead>
           <tbody>
             <template x-for="u in adminUsers" :key="u.id">
               <tr>
@@ -343,7 +343,9 @@ a:hover{text-decoration:underline}
                 <td x-text="u.username"></td>
                 <td x-text="u.role"></td>
                 <td x-text="u.active ? 'Yes' : 'No'"></td>
-                <td x-text="u.max_servers"></td>
+                <td>
+                  <input type="number" :value="u.max_servers" @change="updateUserLimits(u, parseInt($event.target.value), u.max_tokens)" style="width:80px;padding:4px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem">
+                </td>
                 <td>
                   <input type="number" :value="u.max_tokens" @change="updateUserLimits(u, u.max_servers, parseInt($event.target.value))" style="width:100px;padding:4px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem">
                 </td>

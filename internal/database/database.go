@@ -162,6 +162,19 @@ func (d *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_server_ownership_owner ON server_ownership(owner_user_id)`,
 		// Bump existing users from old 200k default to new 500k default.
 		`UPDATE users SET max_tokens = 500000 WHERE max_tokens = 200000`,
+		// Seed existing Minecraft servers as owned by the admin bootstrap account (user ID 1).
+		// Uses a subquery so the insert is a no-op when user ID 1 doesn't exist (e.g. in tests).
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm10', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm9', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm9-tts', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-bedrock3', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla1', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla10', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla11', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla12', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla13', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla14', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
+		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-vanilla15', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
 	}
 
 	for _, m := range migrations {

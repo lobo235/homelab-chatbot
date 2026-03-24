@@ -397,12 +397,23 @@ func (e *ErrRateLimitWait) Error() string {
 // On 429 responses, it retries up to maxRetries times with exponential backoff,
 // sending rate_limit SSE events so the frontend can show a waiting indicator.
 // buildRequestBody constructs the Anthropic API request with prompt caching.
-func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool) ([]byte, error) {
+func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool) ([]byte, error) {
 	prompt := systemPrompt
 	if verbosityMode == "kid" {
 		prompt += "\n\nThe current user is in KID MODE. Use simple, friendly language. Avoid technical jargon and HCL. Show progress as natural language steps."
 	} else {
 		prompt += "\n\nThe current user is in OPERATOR MODE. Be verbose. Show HCL specs, tool details, and full technical status."
+	}
+
+	// Append server access context so the model knows which servers this user can manage.
+	if isAdmin {
+		prompt += "\n\nThis user is an ADMIN and can access all servers."
+	} else if len(ownedServers) > 0 {
+		prompt += "\n\nYour user's Minecraft servers: " + strings.Join(ownedServers, ", ") +
+			"\nYou may ONLY perform server operations (status, RCON, backups, logs, file management) on servers in this list." +
+			"\nFor non-admin users, reject any request to interact with servers not in this list."
+	} else {
+		prompt += "\n\nThis user does not own any Minecraft servers yet. They can request new servers to be created."
 	}
 
 	model := s.model
@@ -447,8 +458,8 @@ func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []Anthropi
 }
 
 // StreamResponse sends a streaming request to the Claude API and emits SSE events.
-func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, eventCh chan<- SSEEvent) (*StreamResult, error) {
-	data, err := s.buildRequestBody(messages, tools, verbosityMode, useHaiku)
+func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool, eventCh chan<- SSEEvent) (*StreamResult, error) {
+	data, err := s.buildRequestBody(messages, tools, verbosityMode, useHaiku, ownedServers, isAdmin)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}

@@ -124,7 +124,15 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		verbosity = req.VerbosityMode
 	}
 
-	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity, req.Debug && user.Role == "admin")
+	// Build owned server list for system prompt scoping.
+	var ownedServerNames []string
+	if ownedServers, err := h.DB.ListServersByOwner(user.ID); err == nil {
+		for _, s := range ownedServers {
+			ownedServerNames = append(ownedServerNames, s.ServerName)
+		}
+	}
+
+	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity, req.Debug && user.Role == "admin", user, ownedServerNames)
 }
 
 // resolveConversation gets an existing conversation or creates a new one.
@@ -186,7 +194,8 @@ const maxToolRounds = 8
 // auto-continue with a new request. Set conservatively under typical proxy timeouts.
 const sseDeadline = 90 * time.Second
 
-func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string, isAdmin bool) {
+func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string, debugEnabled bool, user *database.User, ownedServers []string) {
+	isAdmin := user.Role == "admin"
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -200,7 +209,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 
 	sendEvent := func(event chat.SSEEvent) {
 		// Only send debug events when debug mode is enabled by an admin.
-		if event.Type == "debug" && !isAdmin {
+		if event.Type == "debug" && !debugEnabled {
 			return
 		}
 		data, _ := json.Marshal(event)
@@ -243,7 +252,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		var streamErr error
 
 		go func() {
-			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, false, eventCh)
+			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, false, ownedServers, isAdmin, eventCh)
 			close(eventCh)
 		}()
 
@@ -316,6 +325,11 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 			if err := json.Unmarshal(tu.Input, &args); err != nil {
 				args = map[string]interface{}{}
 			}
+
+			// Inject user context for MCP-level authorization.
+			args["_user_id"] = user.ID
+			args["_user_role"] = user.Role
+			args["_owned_servers"] = strings.Join(ownedServers, ",")
 
 			h.Log.Info("executing MCP tool", "tool", tu.Name, "conversation_id", convID)
 			toolStart := time.Now()

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Multi-tenancy Phase 1: operator mode checkbox hidden for non-admin users
+- Multi-tenancy Phase 1: Max Servers column in admin users table is now editable (inline number input)
+- Multi-tenancy Phase 1: database migration seeds existing Minecraft servers as owned by admin bootstrap account (user ID 1)
+- Multi-tenancy Phase 1: system prompt includes user's owned server list so Claude enforces per-user server access; admins get unrestricted access
+
 ## [v1.6.2] - 2026-03-24
 
 ### Added
