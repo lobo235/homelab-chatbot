@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.6.2] - 2026-03-24
+
+### Added
+- RCON safety rules in system prompt: blocked commands explained, confirmation required for destructive commands, safe commands listed
+
 ## [v1.6.1] - 2026-03-24
 
 ### Added
