@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.8] - 2026-03-24
+
+### Added
+- Debug log captures full user messages and assistant responses for troubleshooting context
+
+### Fixed
+- Server-side enforcement of one-tool-at-a-time: when Claude sends multiple parallel tool calls, only the first is executed — prevents connection timeouts from sequential gateway call storms
+
 ## [v1.5.7] - 2026-03-24
 
 ### Added

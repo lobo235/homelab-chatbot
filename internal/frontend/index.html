@@ -116,6 +116,9 @@ a:hover{text-decoration:underline}
 .debug-type.rate_limit{color:var(--warning)}
 .debug-type.debug{color:#8b949e}
 .debug-type.done{color:var(--accent2)}
+.debug-type.user_msg{color:#58a6ff;font-style:italic}
+.debug-type.assistant_msg{color:#3fb950;font-style:italic}
+.debug-type.request{color:#8b949e}
 .debug-data{color:var(--text)}
 /* Welcome panel */
 .welcome{max-width:700px;margin:60px auto;text-align:center;padding:20px}
@@ -604,7 +607,8 @@ function chatApp() {
       this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.scrollToBottom();
-      this.debugEvent('request', {message: text.substring(0, 100), conversation_id: this.currentSession || 'new'});
+      this.debugEvent('user_msg', text);
+      this.debugEvent('request', {conversation_id: this.currentSession || 'new'});
 
       // Reset textarea height.
       if (this.$refs.input) this.$refs.input.style.height = 'auto';
@@ -673,6 +677,7 @@ function chatApp() {
 
       // Finalize streaming.
       if (this.streamBuffer) {
+        this.debugEvent('assistant_msg', this.streamBuffer);
         this.messages.push({role: 'assistant', content: this.streamBuffer});
       }
       this.streaming = false;

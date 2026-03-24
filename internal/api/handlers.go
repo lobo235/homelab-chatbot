@@ -272,6 +272,21 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 			break
 		}
 
+		// Enforce one-tool-at-a-time: only include the first tool_use.
+		// Claude sometimes sends multiple tool_use blocks in parallel despite
+		// system prompt instructions. We drop the extras to prevent timeout
+		// from executing many sequential gateway calls.
+		toolUses := result.ToolUses
+		if len(toolUses) > 1 {
+			h.Log.Warn("claude sent multiple tool calls, limiting to first",
+				"requested", len(toolUses), "conversation_id", convID)
+			sendEvent(chat.SSEEvent{
+				Type:    "debug",
+				Message: fmt.Sprintf("tool_limit: claude requested %d tools, executing only first", len(toolUses)),
+			})
+			toolUses = toolUses[:1]
+		}
+
 		// Build the assistant message with text + tool_use content blocks.
 		assistantContent := []interface{}{}
 		if result.Text != "" {
@@ -280,7 +295,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 				"text": result.Text,
 			})
 		}
-		for _, tu := range result.ToolUses {
+		for _, tu := range toolUses {
 			assistantContent = append(assistantContent, map[string]interface{}{
 				"type":  "tool_use",
 				"id":    tu.ID,
@@ -295,7 +310,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 
 		// Execute each tool and collect results.
 		toolResults := []interface{}{}
-		for _, tu := range result.ToolUses {
+		for _, tu := range toolUses {
 			var args map[string]interface{}
 			if err := json.Unmarshal(tu.Input, &args); err != nil {
 				args = map[string]interface{}{}
