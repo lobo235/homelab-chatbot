@@ -431,6 +431,9 @@ function chatApp() {
     toolCalls: [],
     abortController: null,
     rateLimitMessage: '',
+    rateLimitCountdown: 0,
+    rateLimitTimer: null,
+    pendingRetryConvId: null,
     verbosityMode: 'kid',
     adminUsers: [],
     adminUsage: [],
@@ -604,6 +607,16 @@ function chatApp() {
         }
       }
 
+      // If a rate limit retry is pending, keep streaming state active.
+      if (this.pendingRetryConvId) {
+        // Flush any partial text before the retry continues.
+        if (this.streamBuffer) {
+          this.messages.push({role: 'assistant', content: this.streamBuffer});
+          this.streamBuffer = '';
+        }
+        return;
+      }
+
       // Finalize streaming.
       if (this.streamBuffer) {
         this.messages.push({role: 'assistant', content: this.streamBuffer});
@@ -637,12 +650,22 @@ function chatApp() {
           this.rateLimitMessage = event.message;
           this.scrollToBottom();
           break;
+        case 'rate_limit_pause':
+          // Server closed the stream due to long rate limit. Auto-retry after countdown.
+          this.pendingRetryConvId = this.currentSession;
+          this.rateLimitCountdown = event.retry_after || 60;
+          this.rateLimitMessage = `Rate limited by API. Auto-retrying in ${this.rateLimitCountdown} seconds...`;
+          this.startRetryCountdown();
+          break;
         case 'error':
           this.rateLimitMessage = '';
           this.streamBuffer += `\n\nError: ${event.message}`;
           break;
         case 'done':
-          this.rateLimitMessage = '';
+          // Don't clear rate limit state if a retry is pending.
+          if (!this.pendingRetryConvId) {
+            this.rateLimitMessage = '';
+          }
           break;
       }
     },
@@ -652,6 +675,94 @@ function chatApp() {
         this.abortController.abort();
         this.streaming = false;
       }
+      // Cancel any pending rate limit retry.
+      if (this.rateLimitTimer) {
+        clearInterval(this.rateLimitTimer);
+        this.rateLimitTimer = null;
+        this.pendingRetryConvId = null;
+        this.rateLimitMessage = '';
+        this.rateLimitCountdown = 0;
+      }
+    },
+
+    startRetryCountdown() {
+      if (this.rateLimitTimer) clearInterval(this.rateLimitTimer);
+      this.rateLimitTimer = setInterval(() => {
+        this.rateLimitCountdown--;
+        if (this.rateLimitCountdown <= 0) {
+          clearInterval(this.rateLimitTimer);
+          this.rateLimitTimer = null;
+          this.continueAfterRateLimit();
+        } else {
+          this.rateLimitMessage = `Rate limited by API. Auto-retrying in ${this.rateLimitCountdown} seconds...`;
+        }
+      }, 1000);
+    },
+
+    async continueAfterRateLimit() {
+      const convId = this.pendingRetryConvId;
+      this.pendingRetryConvId = null;
+      this.rateLimitMessage = 'Resuming conversation...';
+      if (!convId) return;
+
+      // Send a continuation request (empty message with conversation_id).
+      this.abortController = new AbortController();
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            message: '',
+            conversation_id: convId,
+            verbosity_mode: this.verbosityMode,
+          }),
+          signal: this.abortController.signal,
+        });
+
+        if (!r.ok) {
+          const err = await r.json();
+          this.rateLimitMessage = '';
+          this.messages.push({role: 'assistant', content: `Error: ${err.message || 'Failed to resume'}`});
+          this.streaming = false;
+          return;
+        }
+
+        this.rateLimitMessage = '';
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              this.handleSSE(event);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          this.messages.push({role: 'assistant', content: 'Error: Connection lost during retry. Please try again.'});
+        }
+      }
+
+      // Finalize.
+      if (this.streamBuffer) {
+        this.messages.push({role: 'assistant', content: this.streamBuffer});
+      }
+      this.streaming = false;
+      this.streamBuffer = '';
+      this.toolCalls = [];
+      this.rateLimitMessage = '';
+      this.loadSessions();
+      this.loadServers();
+      this.scrollToBottom();
     },
 
     scrollToBottom() {

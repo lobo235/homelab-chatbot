@@ -81,7 +81,9 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_body", "Invalid request body")
 		return
 	}
-	if strings.TrimSpace(req.Message) == "" {
+
+	isContinuation := strings.TrimSpace(req.Message) == "" && req.ConversationID > 0
+	if !isContinuation && strings.TrimSpace(req.Message) == "" {
 		writeError(w, http.StatusBadRequest, "missing_fields", "Message is required")
 		return
 	}
@@ -97,10 +99,13 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.AddMessage(conv.ID, "user", req.Message); err != nil {
-		h.Log.Error("store message", "error", err)
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to store message")
-		return
+	// Only add a user message for new requests, not continuations after rate limit.
+	if !isContinuation {
+		if _, err := h.DB.AddMessage(conv.ID, "user", req.Message); err != nil {
+			h.Log.Error("store message", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal", "Failed to store message")
+			return
+		}
 	}
 
 	anthropicMsgs, err := h.buildMessages(conv.ID)
@@ -205,12 +210,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		}
 
 		if streamErr != nil {
-			h.Log.Error("stream error", "error", streamErr, "conversation_id", convID, "round", round)
-			errMsg := "Failed to get response from Claude"
-			if errors.Is(streamErr, chat.ErrRateLimitExhausted) {
-				errMsg = "Rate limit exceeded after retries. Please wait a moment and try again."
-			}
-			sendEvent(chat.SSEEvent{Type: "error", Message: errMsg})
+			h.handleStreamError(streamErr, convID, round, fullText.String(), sendEvent)
 			return
 		}
 
@@ -296,6 +296,34 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 			h.Log.Error("update tokens", "error", err)
 		}
 	}
+}
+
+// handleStreamError processes errors from StreamResponse, sending the appropriate SSE event.
+func (h *Handlers) handleStreamError(streamErr error, convID int64, round int, partialText string, sendEvent func(chat.SSEEvent)) {
+	// If the API wants a long wait, save progress and tell frontend to auto-retry.
+	var rlWait *chat.ErrRateLimitWait
+	if errors.As(streamErr, &rlWait) {
+		h.Log.Warn("rate limit pause, deferring to frontend", "retry_after", rlWait.RetryAfter, "conversation_id", convID, "round", round)
+		if partialText != "" {
+			if _, dbErr := h.DB.AddMessage(convID, "assistant", partialText); dbErr != nil {
+				h.Log.Error("store partial assistant message", "error", dbErr)
+			}
+		}
+		sendEvent(chat.SSEEvent{
+			Type:       "rate_limit_pause",
+			Message:    fmt.Sprintf("Rate limited by API. Auto-retrying in %d seconds...", rlWait.RetryAfter),
+			RetryAfter: rlWait.RetryAfter,
+		})
+		sendEvent(chat.SSEEvent{Type: "done"})
+		return
+	}
+
+	h.Log.Error("stream error", "error", streamErr, "conversation_id", convID, "round", round)
+	errMsg := "Failed to get response from Claude"
+	if errors.Is(streamErr, chat.ErrRateLimitExhausted) {
+		errMsg = "Rate limit exceeded. Please wait a minute or two and try again."
+	}
+	sendEvent(chat.SSEEvent{Type: "error", Message: errMsg})
 }
 
 // HandleListSessions processes GET /api/sessions.

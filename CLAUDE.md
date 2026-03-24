@@ -179,9 +179,12 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 {"type":"tool_start","name":"...","message":"..."}
 {"type":"tool_done","name":"...","status":"done|failed"}
 {"type":"rate_limit","message":"Rate limited by API. Retrying in N seconds..."}
+{"type":"rate_limit_pause","message":"...","retry_after":88}
 {"type":"done"}
 {"type":"error","message":"..."}
 ```
+
+`rate_limit` is sent during short waits (≤30s) while the server retries. `rate_limit_pause` is sent for long waits — the server closes the stream and the frontend auto-retries by sending a continuation request (empty message with `conversation_id`) after the countdown.
 
 ## Testing Approach
 

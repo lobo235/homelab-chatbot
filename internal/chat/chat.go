@@ -61,11 +61,12 @@ func NewService(apiKey, model string, mcpProcess *mcp.Process, log *slog.Logger)
 
 // SSEEvent represents a server-sent event to the frontend.
 type SSEEvent struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Message string `json:"message,omitempty"`
-	Status  string `json:"status,omitempty"`
+	Type       string `json:"type"`
+	Content    string `json:"content,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Status     string `json:"status,omitempty"`
+	RetryAfter int    `json:"retry_after,omitempty"`
 }
 
 // ToolUseBlock represents a tool call from Claude's response.
@@ -330,8 +331,22 @@ type AnthropicToolDef struct {
 // maxRetries is the number of times to retry on rate limit (429) responses.
 const maxRetries = 3
 
+// maxRetryWait is the longest we'll wait for a single retry. If the API asks for
+// longer, we give up immediately — the SSE connection won't survive a multi-minute idle.
+const maxRetryWait = 30 * time.Second
+
 // ErrRateLimitExhausted indicates all rate limit retries were exhausted.
 var ErrRateLimitExhausted = fmt.Errorf("rate limit exceeded after %d retries", maxRetries)
+
+// ErrRateLimitWait indicates the API requires a wait longer than maxRetryWait.
+// The frontend should pause and auto-retry after RetryAfter seconds.
+type ErrRateLimitWait struct {
+	RetryAfter int // seconds
+}
+
+func (e *ErrRateLimitWait) Error() string {
+	return fmt.Sprintf("rate limited, retry after %d seconds", e.RetryAfter)
+}
 
 // StreamResponse calls the Anthropic API with streaming and writes SSE events.
 // It does NOT close eventCh — the caller is responsible for closing it.
@@ -396,6 +411,14 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 			}
 
 			s.log.Warn("rate limited by Anthropic API", "attempt", attempt+1, "retry_after", wait)
+
+			// If the API asks us to wait longer than our cap, return a typed error
+			// so the handler can close the SSE stream and let the frontend auto-retry.
+			if wait > maxRetryWait {
+				s.log.Warn("retry-after exceeds max wait, deferring to frontend", "retry_after", wait, "max", maxRetryWait)
+				return nil, &ErrRateLimitWait{RetryAfter: int(wait.Seconds())}
+			}
+
 			eventCh <- SSEEvent{
 				Type:    "rate_limit",
 				Message: fmt.Sprintf("Rate limited by API. Retrying in %d seconds...", int(wait.Seconds())),

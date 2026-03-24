@@ -17,8 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Rate limit exhaustion returns distinct error message instead of generic "Failed to get response from Claude"
 
+### Changed
+- Long rate limit waits (>30s) now close the SSE stream cleanly and send a `rate_limit_pause` event; frontend auto-retries after countdown — no user intervention needed
+- Empty-message continuation requests (`conversation_id` with no message) skip duplicate message creation for seamless rate limit recovery
+
 ### Fixed
-- Rate limit retry wait sends periodic countdown events every 10 seconds to keep SSE connection alive — prevents reverse proxy (Traefik) from killing idle connections during long Retry-After waits
+- Rate limit retry wait sends periodic countdown events every 10 seconds to keep SSE connection alive during short waits (≤30s)
+- Long Retry-After values (60-90s) no longer kill the SSE connection — the stream closes cleanly and frontend handles the wait client-side
 
 ## [v1.2.0] - 2026-03-23
 
