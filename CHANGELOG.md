@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.9] - 2026-03-24
+
+### Added
+- System prompt HCL editing rules: treat existing specs as authoritative, make only requested changes, preserve datacenter/node_pool/volumes/env vars, always show HCL for review before submitting
+
 ## [v1.5.8] - 2026-03-24
 
 ### Added
