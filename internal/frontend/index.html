@@ -87,16 +87,18 @@ a:hover{text-decoration:underline}
 .connect-addr span{font-size:1.1rem;font-weight:700;color:#a5d6a7;font-family:var(--mono)}
 .copy-btn{background:var(--accent2);color:#000;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.8rem;white-space:nowrap}
 .copy-btn:hover{opacity:.85}
-/* Tool call blocks */
-.tool-block{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin:8px 0;overflow:hidden}
-.tool-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:.85rem}
-.tool-header .tool-icon{font-size:1rem}
-.tool-header .tool-name{font-weight:600;color:var(--accent)}
-.tool-header .tool-status{margin-left:auto;font-size:.8rem}
+/* Tool call activity bar */
+.tool-activity{border-left:2px solid var(--border);margin:0 0 12px 0;padding:4px 0 4px 12px}
+.tool-activity-label{font-size:.75rem;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.tool-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-dim);padding:2px 0}
+.tool-item .tool-icon{font-size:.85rem}
+.tool-item .tool-name{color:var(--accent);font-weight:500}
+.tool-item .tool-status{margin-left:auto;font-size:.75rem}
 .tool-status.running{color:var(--warning)}
 .tool-status.done{color:var(--accent2)}
 .tool-status.failed{color:var(--danger)}
-.tool-body{padding:8px 12px;font-size:.8rem;color:var(--text-dim);border-top:1px solid var(--border);font-family:var(--mono)}
+/* Response separator */
+.response-divider{border:none;border-top:1px solid var(--border);margin:12px 0 8px 0}
 /* Welcome panel */
 .welcome{max-width:700px;margin:60px auto;text-align:center;padding:20px}
 .welcome h2{font-size:1.5rem;margin-bottom:12px}
@@ -131,7 +133,6 @@ a:hover{text-decoration:underline}
 .sidebar.hidden{margin-left:-260px}
 .chips{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding-bottom:8px}
 .chip{white-space:nowrap;flex-shrink:0}
-.tool-block .tool-body{display:none}
 }
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px}
@@ -255,22 +256,24 @@ a:hover{text-decoration:underline}
       <!-- Streaming response -->
       <div x-show="streaming" class="message message-assistant">
         <div class="bubble">
-          <!-- Tool call blocks -->
-          <template x-for="(tool, ti) in toolCalls" :key="ti">
-            <div class="tool-block">
-              <div class="tool-header" @click="tool.expanded = !tool.expanded">
+          <!-- Tool activity (compact, non-intrusive) -->
+          <div x-show="toolCalls.length > 0" class="tool-activity">
+            <div class="tool-activity-label">Tool Activity</div>
+            <template x-for="(tool, ti) in toolCalls" :key="ti">
+              <div class="tool-item">
                 <span class="tool-icon">&#9881;</span>
                 <span class="tool-name" x-text="tool.name"></span>
                 <span class="tool-status" :class="tool.status" x-text="tool.status === 'running' ? 'Running...' : tool.status === 'done' ? 'Done' : 'Failed'"></span>
               </div>
-              <div class="tool-body" x-show="tool.expanded" x-text="tool.message || tool.name"></div>
-            </div>
-          </template>
+            </template>
+          </div>
           <!-- Rate limit banner -->
           <div x-show="rateLimitMessage" class="rate-limit-banner">
             <span class="rl-icon">&#9888;</span>
             <span x-text="rateLimitMessage"></span>
           </div>
+          <!-- Separator between tool activity and response -->
+          <hr x-show="toolCalls.length > 0 && streamBuffer" class="response-divider">
           <!-- Streamed text -->
           <div x-html="renderMarkdown(streamBuffer)"></div>
           <div x-show="streamBuffer === '' && toolCalls.length === 0 && !rateLimitMessage" class="typing"><span></span><span></span><span></span></div>
@@ -369,7 +372,7 @@ a:hover{text-decoration:underline}
 
 <script>
 // Configure marked.
-marked.setOptions({breaks: true, gfm: true});
+marked.setOptions({breaks: false, gfm: true});
 
 // Auth store.
 document.addEventListener('alpine:init', () => {

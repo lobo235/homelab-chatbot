@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.5] - 2026-03-24
+
+### Changed
+- Tool calls now render as a compact activity bar instead of expandable blocks — eliminates layout jumping during tool execution
+- Disable `breaks: true` in marked.js to fix missing spaces after periods in streamed text
+- Visual divider separates tool activity from response text for clearer distinction
+
 ## [v1.5.4] - 2026-03-24
 
 ### Fixed
