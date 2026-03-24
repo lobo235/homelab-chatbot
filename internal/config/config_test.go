@@ -83,6 +83,59 @@ func TestEnvOrInt_InvalidFallback(t *testing.T) {
 	}
 }
 
+func TestGateway(t *testing.T) {
+	cfg := &Config{
+		Gateways: []GatewayConfig{
+			{Name: "nomad", URL: "http://nomad.example.com", Key: "key1"},
+			{Name: "vault", URL: "http://vault.example.com", Key: "key2"},
+		},
+	}
+
+	gw := cfg.Gateway("nomad")
+	if gw == nil {
+		t.Fatal("expected nomad gateway")
+	}
+	if gw.URL != "http://nomad.example.com" {
+		t.Errorf("url=%q", gw.URL)
+	}
+
+	gw = cfg.Gateway("vault")
+	if gw == nil {
+		t.Fatal("expected vault gateway")
+	}
+
+	gw = cfg.Gateway("nonexistent")
+	if gw != nil {
+		t.Error("expected nil for nonexistent gateway")
+	}
+}
+
+func TestLoad_WithGateways(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("NOMAD_GATEWAY_URL", "http://nomad.example.com")
+	t.Setenv("NOMAD_GATEWAY_KEY", "nomad-key")
+	t.Setenv("CF_GATEWAY_URL", "http://cf.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(cfg.Gateways) != 2 {
+		t.Fatalf("got %d gateways, want 2", len(cfg.Gateways))
+	}
+
+	nomad := cfg.Gateway("nomad")
+	if nomad == nil || nomad.Key != "nomad-key" {
+		t.Errorf("nomad gateway: %+v", nomad)
+	}
+
+	cf := cfg.Gateway("cloudflare")
+	if cf == nil || cf.URL != "http://cf.example.com" {
+		t.Errorf("cloudflare gateway: %+v", cf)
+	}
+}
+
 func TestSlogLevel(t *testing.T) {
 	tests := []struct {
 		level string
