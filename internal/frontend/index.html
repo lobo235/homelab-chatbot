@@ -290,7 +290,6 @@ a:hover{text-decoration:underline}
           placeholder="Ask me about Minecraft servers..."
           rows="1"
           @input="autoResize($event)"
-          :disabled="streaming"
         ></textarea>
         <button class="btn btn-accent" @click="sendMessage" :disabled="streaming || !inputText.trim()">
           <span x-show="!streaming">Send</span>
@@ -553,11 +552,8 @@ function chatApp() {
       this.toolCalls = [];
       this.scrollToBottom();
 
-      // Reset textarea height and keep focus.
-      if (this.$refs.input) {
-        this.$refs.input.style.height = 'auto';
-        this.$nextTick(() => this.$refs.input.focus());
-      }
+      // Reset textarea height.
+      if (this.$refs.input) this.$refs.input.style.height = 'auto';
 
       this.abortController = new AbortController();
 

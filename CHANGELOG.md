@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.2] - 2026-03-24
+
+### Fixed
+- Message input no longer loses focus after sending — removed disabled attribute from textarea during streaming
+
 ## [v1.5.1] - 2026-03-24
 
 ### Changed
