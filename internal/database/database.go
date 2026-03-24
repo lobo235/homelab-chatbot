@@ -124,7 +124,7 @@ func (d *DB) migrate() error {
 			verbosity_mode TEXT NOT NULL DEFAULT '',
 			active INTEGER NOT NULL DEFAULT 1,
 			max_servers INTEGER NOT NULL DEFAULT 5,
-			max_tokens INTEGER NOT NULL DEFAULT 200000,
+			max_tokens INTEGER NOT NULL DEFAULT 500000,
 			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
 		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
@@ -160,6 +160,8 @@ func (d *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_server_ownership_owner ON server_ownership(owner_user_id)`,
+		// Bump existing users from old 200k default to new 500k default.
+		`UPDATE users SET max_tokens = 500000 WHERE max_tokens = 200000`,
 	}
 
 	for _, m := range migrations {

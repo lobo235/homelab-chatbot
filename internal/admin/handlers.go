@@ -184,7 +184,7 @@ func (h *Handlers) HandleSetUserLimits(w http.ResponseWriter, r *http.Request) {
 		body.MaxServers = 5
 	}
 	if body.MaxTokens <= 0 {
-		body.MaxTokens = 200000
+		body.MaxTokens = 500000
 	}
 
 	if err := h.DB.UpdateUserLimits(id, body.MaxServers, body.MaxTokens); err != nil {

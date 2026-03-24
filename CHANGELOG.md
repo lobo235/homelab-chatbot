@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.3] - 2026-03-24
+
+### Added
+- Admin panel: editable token limit per user (inline number input in users table)
+
+### Changed
+- Default per-conversation token limit bumped from 200k to 500k (schema, admin fallback, migration for existing users)
+
 ## [v1.5.2] - 2026-03-24
 
 ### Fixed
