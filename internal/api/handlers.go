@@ -99,13 +99,16 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only add a user message for new requests, not continuations after rate limit.
-	if !isContinuation {
-		if _, err := h.DB.AddMessage(conv.ID, "user", req.Message); err != nil {
-			h.Log.Error("store message", "error", err)
-			writeError(w, http.StatusInternalServerError, "internal", "Failed to store message")
-			return
-		}
+	// For continuations after rate limit pause, add a "please continue" message
+	// so the conversation ends with a user message (required by the API).
+	msg := req.Message
+	if isContinuation {
+		msg = "Please continue where you left off."
+	}
+	if _, err := h.DB.AddMessage(conv.ID, "user", msg); err != nil {
+		h.Log.Error("store message", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal", "Failed to store message")
+		return
 	}
 
 	anthropicMsgs, err := h.buildMessages(conv.ID)
@@ -299,16 +302,13 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 }
 
 // handleStreamError processes errors from StreamResponse, sending the appropriate SSE event.
-func (h *Handlers) handleStreamError(streamErr error, convID int64, round int, partialText string, sendEvent func(chat.SSEEvent)) {
-	// If the API wants a long wait, save progress and tell frontend to auto-retry.
+func (h *Handlers) handleStreamError(streamErr error, convID int64, round int, _ string, sendEvent func(chat.SSEEvent)) {
+	// If the API wants a long wait, tell frontend to auto-retry after countdown.
+	// Don't save partial assistant text — it's mid-tool-loop and would leave the
+	// conversation ending with an assistant message, which the API rejects.
 	var rlWait *chat.ErrRateLimitWait
 	if errors.As(streamErr, &rlWait) {
 		h.Log.Warn("rate limit pause, deferring to frontend", "retry_after", rlWait.RetryAfter, "conversation_id", convID, "round", round)
-		if partialText != "" {
-			if _, dbErr := h.DB.AddMessage(convID, "assistant", partialText); dbErr != nil {
-				h.Log.Error("store partial assistant message", "error", dbErr)
-			}
-		}
 		sendEvent(chat.SSEEvent{
 			Type:       "rate_limit_pause",
 			Message:    fmt.Sprintf("Rate limited by API. Auto-retrying in %d seconds...", rlWait.RetryAfter),
