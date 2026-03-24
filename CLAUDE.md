@@ -153,6 +153,7 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 | GET | `/api/servers` | Session | List user's servers |
 | POST | `/api/auth/login` | None | Login, set session cookie |
 | POST | `/api/auth/logout` | Session | Logout, clear cookie |
+| GET | `/api/auth/me` | Session | Get current user info |
 | GET | `/health` | None | Health check |
 | GET | `/help` | None | Static help page |
 

@@ -88,9 +88,9 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv, err := h.resolveConversation(user, &req)
+	conv, err := h.resolveConversation(w, user, &req)
 	if err != nil {
-		return // error already written by resolveConversation
+		return
 	}
 
 	if conv.InputTokens >= int64(user.MaxTokens) {
@@ -128,13 +128,15 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 
 // resolveConversation gets an existing conversation or creates a new one.
 // On error, it writes the HTTP error response and returns a nil conversation.
-func (h *Handlers) resolveConversation(user *database.User, req *chat.Request) (*database.Conversation, error) {
+func (h *Handlers) resolveConversation(w http.ResponseWriter, user *database.User, req *chat.Request) (*database.Conversation, error) {
 	if req.ConversationID > 0 {
 		conv, err := h.DB.GetConversation(req.ConversationID)
 		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "Conversation not found")
 			return nil, err
 		}
 		if conv.UserID != user.ID {
+			writeError(w, http.StatusForbidden, "forbidden", "Access denied")
 			return nil, fmt.Errorf("forbidden")
 		}
 		return conv, nil
@@ -144,7 +146,12 @@ func (h *Handlers) resolveConversation(user *database.User, req *chat.Request) (
 	if len(title) > 50 {
 		title = title[:50] + "..."
 	}
-	return h.DB.CreateConversation(user.ID, title)
+	conv, err := h.DB.CreateConversation(user.ID, title)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "Failed to create conversation")
+		return nil, err
+	}
+	return conv, nil
 }
 
 func (h *Handlers) buildMessages(convID int64) ([]chat.AnthropicMessage, error) {

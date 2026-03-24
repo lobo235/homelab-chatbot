@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.4] - 2026-03-24
+
+### Fixed
+- `resolveConversation` now writes proper HTTP error responses (404/403) instead of silently returning 200 on failure
+- Add missing `GET /api/auth/me` route to CLAUDE.md API routes table
+
 ## [v1.5.3] - 2026-03-24
 
 ### Added
