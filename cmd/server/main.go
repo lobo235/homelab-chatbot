@@ -78,7 +78,7 @@ func main() {
 	}
 
 	// Create chat service.
-	chatSvc := chat.NewService(cfg.AnthropicAPIKey, cfg.ClaudeModel, mcpProc, log)
+	chatSvc := chat.NewService(cfg.AnthropicAPIKey, cfg.ClaudeModel, cfg.ClaudeHaikuModel, mcpProc, log)
 
 	// Create and start HTTP server.
 	srv := api.NewServer(db, authSvc, chatSvc, mcpClient, cfg.Gateways, version, cfg.ContextWindowSize, log)

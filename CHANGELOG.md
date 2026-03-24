@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.6.0] - 2026-03-24
+
+### Added
+- Prompt caching: system prompt and tool definitions cached via `cache_control` to reduce input tokens on every API call
+- Haiku model routing: tool-execution rounds (round > 0) use Claude Haiku for faster, cheaper processing with separate rate limits; initial reasoning uses Sonnet
+- `CLAUDE_HAIKU_MODEL` config var for configuring the Haiku model
+- Debug log shows which model is used per round
+
 ## [v1.5.14] - 2026-03-24
 
 ### Fixed

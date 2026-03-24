@@ -242,8 +242,15 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		var result *chat.StreamResult
 		var streamErr error
 
+		// Use Haiku for tool-execution rounds (faster, cheaper, separate rate limit).
+		// Use Sonnet for the initial round (needs full reasoning power).
+		useHaiku := round > 0
+		if useHaiku {
+			sendEvent(chat.SSEEvent{Type: "debug", Message: "model=haiku (tool round)"})
+		}
+
 		go func() {
-			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, eventCh)
+			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, useHaiku, eventCh)
 			close(eventCh)
 		}()
 

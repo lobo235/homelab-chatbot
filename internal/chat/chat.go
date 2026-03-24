@@ -74,15 +74,17 @@ For operator mode users: Be verbose with operational details (job names, tool re
 type Service struct {
 	apiKey     string
 	model      string
+	haikuModel string
 	mcpProcess *mcp.Process
 	log        *slog.Logger
 }
 
 // NewService creates a new chat service.
-func NewService(apiKey, model string, mcpProcess *mcp.Process, log *slog.Logger) *Service {
+func NewService(apiKey, model, haikuModel string, mcpProcess *mcp.Process, log *slog.Logger) *Service {
 	return &Service{
 		apiKey:     apiKey,
 		model:      model,
+		haikuModel: haikuModel,
 		mcpProcess: mcpProcess,
 		log:        log,
 	}
@@ -382,7 +384,8 @@ func (e *ErrRateLimitWait) Error() string {
 // It does NOT close eventCh — the caller is responsible for closing it.
 // On 429 responses, it retries up to maxRetries times with exponential backoff,
 // sending rate_limit SSE events so the frontend can show a waiting indicator.
-func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, eventCh chan<- SSEEvent) (*StreamResult, error) {
+// buildRequestBody constructs the Anthropic API request with prompt caching.
+func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool) ([]byte, error) {
 	prompt := systemPrompt
 	if verbosityMode == "kid" {
 		prompt += "\n\nThe current user is in KID MODE. Use simple, friendly language. Avoid technical jargon and HCL. Show progress as natural language steps."
@@ -390,18 +393,50 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 		prompt += "\n\nThe current user is in OPERATOR MODE. Be verbose. Show HCL specs, tool details, and full technical status."
 	}
 
+	model := s.model
+	if useHaiku && s.haikuModel != "" {
+		model = s.haikuModel
+	}
+
+	// Use cache_control on system prompt for prompt caching.
+	systemBlocks := []map[string]interface{}{
+		{
+			"type":          "text",
+			"text":          prompt,
+			"cache_control": map[string]string{"type": "ephemeral"},
+		},
+	}
+
 	reqBody := map[string]interface{}{
-		"model":      s.model,
+		"model":      model,
 		"max_tokens": 8192,
-		"system":     prompt,
+		"system":     systemBlocks,
 		"messages":   messages,
 		"stream":     true,
 	}
 	if len(tools) > 0 {
-		reqBody["tools"] = tools
+		// Add cache_control to the last tool for prompt caching.
+		cachedTools := make([]map[string]interface{}, len(tools))
+		for i, t := range tools {
+			toolMap := map[string]interface{}{
+				"name":         t.Name,
+				"description":  t.Description,
+				"input_schema": t.InputSchema,
+			}
+			if i == len(tools)-1 {
+				toolMap["cache_control"] = map[string]string{"type": "ephemeral"}
+			}
+			cachedTools[i] = toolMap
+		}
+		reqBody["tools"] = cachedTools
 	}
 
-	data, err := json.Marshal(reqBody)
+	return json.Marshal(reqBody)
+}
+
+// StreamResponse sends a streaming request to the Claude API and emits SSE events.
+func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, eventCh chan<- SSEEvent) (*StreamResult, error) {
+	data, err := s.buildRequestBody(messages, tools, verbosityMode, useHaiku)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -417,6 +452,7 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("x-api-key", s.apiKey)
 		req.Header.Set("anthropic-version", "2023-06-01")
+		req.Header.Set("anthropic-beta", "prompt-caching-2024-07-31")
 
 		resp, err := client.Do(req)
 		if err != nil {

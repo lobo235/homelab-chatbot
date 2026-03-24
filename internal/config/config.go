@@ -20,6 +20,7 @@ type GatewayConfig struct {
 type Config struct {
 	AnthropicAPIKey   string
 	ClaudeModel       string
+	ClaudeHaikuModel  string
 	MCPServerCmd      string
 	AdminPassword     string
 	SessionSecret     string
@@ -35,6 +36,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
 		ClaudeModel:       envOr("CLAUDE_MODEL", "claude-sonnet-4-6"),
+		ClaudeHaikuModel:  envOr("CLAUDE_HAIKU_MODEL", "claude-haiku-4-5-20251001"),
 		MCPServerCmd:      os.Getenv("MCP_SERVER_CMD"),
 		AdminPassword:     os.Getenv("ADMIN_PASSWORD"),
 		SessionSecret:     os.Getenv("SESSION_SECRET"),

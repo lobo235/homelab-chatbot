@@ -94,7 +94,8 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | Var | Required | Default | Purpose |
 |-----|----------|---------|---------|
 | `ANTHROPIC_API_KEY` | yes | — | Anthropic API key |
-| `CLAUDE_MODEL` | no | `claude-sonnet-4-6` | Claude model to use |
+| `CLAUDE_MODEL` | no | `claude-sonnet-4-6` | Claude model for initial reasoning |
+| `CLAUDE_HAIKU_MODEL` | no | `claude-haiku-4-5-20251001` | Claude model for tool-execution rounds (faster, cheaper) |
 | `MCP_SERVER_CMD` | yes | — | Command to launch homelab-mcp-server subprocess |
 | `ADMIN_PASSWORD` | yes | — | Bootstrap password for admin account (first run) |
 | `SESSION_SECRET` | yes | — | Secret for signing session tokens |
