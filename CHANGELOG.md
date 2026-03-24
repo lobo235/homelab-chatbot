@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Rate limit exhaustion returns distinct error message instead of generic "Failed to get response from Claude"
 
+### Fixed
+- Rate limit retry wait sends periodic countdown events every 10 seconds to keep SSE connection alive — prevents reverse proxy (Traefik) from killing idle connections during long Retry-After waits
+
 ## [v1.2.0] - 2026-03-23
 
 ### Added

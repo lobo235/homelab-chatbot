@@ -401,11 +401,29 @@ func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessag
 				Message: fmt.Sprintf("Rate limited by API. Retrying in %d seconds...", int(wait.Seconds())),
 			}
 
-			select {
-			case <-time.After(wait):
-			case <-ctx.Done():
-				return nil, ctx.Err()
+			// Send periodic countdown events to keep the SSE connection alive.
+			// Without these, reverse proxies (Traefik) kill idle connections after ~30-60s.
+			deadline := time.Now().Add(wait)
+			ticker := time.NewTicker(10 * time.Second)
+			waitDone := false
+			for !waitDone {
+				select {
+				case <-time.After(time.Until(deadline)):
+					waitDone = true
+				case <-ticker.C:
+					remaining := int(time.Until(deadline).Seconds())
+					if remaining > 0 {
+						eventCh <- SSEEvent{
+							Type:    "rate_limit",
+							Message: fmt.Sprintf("Rate limited by API. Retrying in %d seconds...", remaining),
+						}
+					}
+				case <-ctx.Done():
+					ticker.Stop()
+					return nil, ctx.Err()
+				}
 			}
+			ticker.Stop()
 
 			backoff *= 2
 			continue
