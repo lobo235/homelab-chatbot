@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.0] - 2026-03-24
+
 ### Added
 - System prompt enforces one-tool-at-a-time step-by-step workflow: call one tool, report to user, wait for confirmation before next step — eliminates parallel tool bursts that caused rate limiting
 - Rate limit retry with exponential backoff: on Anthropic API 429 responses, retries up to 3 times with `Retry-After` header support
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limit retry wait sends periodic countdown events every 10 seconds to keep SSE connection alive during short waits (≤30s)
 - Long Retry-After values (60-90s) no longer kill the SSE connection — the stream closes cleanly and frontend handles the wait client-side
 - Rate limit auto-retry no longer fails with "conversation must end with a user message" — continuation adds a user message instead of sending an empty request
+- Message input retains focus after sending a message
 
 ## [v1.2.0] - 2026-03-23
 

@@ -553,8 +553,11 @@ function chatApp() {
       this.toolCalls = [];
       this.scrollToBottom();
 
-      // Reset textarea height.
-      if (this.$refs.input) this.$refs.input.style.height = 'auto';
+      // Reset textarea height and keep focus.
+      if (this.$refs.input) {
+        this.$refs.input.style.height = 'auto';
+        this.$nextTick(() => this.$refs.input.focus());
+      }
 
       this.abortController = new AbortController();
 
