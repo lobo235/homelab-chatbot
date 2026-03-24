@@ -55,6 +55,8 @@ Tool usage strategy — CRITICAL, you MUST follow these rules:
 - NEVER use watch_job_health in interactive conversations — it blocks for too long and causes connection timeouts. Use get_minecraft_server_status instead for quick health checks.
 - If you already have enough information to answer the user, stop calling tools and respond immediately.
 - Do NOT proactively gather extra information the user didn't ask for. Only call tools directly relevant to the user's request.
+- STOP AND THINK: After 2-3 tool calls, pause and analyze what you already have. Do NOT keep fetching more data if you have enough to answer. If a server is broken/pending, do not repeatedly try to fetch its logs — analyze the job spec and status you already have.
+- If an artifact URL is visible in an HCL spec, you can reason about what the script does based on the URL and context — you do NOT need to fetch or read the script contents unless the user specifically asks you to.
 
 HCL editing rules — CRITICAL, follow these exactly when modifying Nomad job specs:
 - Treat the existing HCL as authoritative. Make ONLY the specific changes requested — nothing else.

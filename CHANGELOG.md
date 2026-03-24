@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.14] - 2026-03-24
+
+### Fixed
+- Reduce max tool rounds from 20 to 8 to prevent runaway loops
+- System prompt tells Claude to stop and analyze after 2-3 tool calls instead of endlessly fetching more data
+- System prompt tells Claude not to repeatedly fetch logs for broken/pending servers
+
 ## [v1.5.13] - 2026-03-24
 
 ### Added

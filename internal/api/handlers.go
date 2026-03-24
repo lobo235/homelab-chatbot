@@ -179,7 +179,7 @@ func (h *Handlers) getMCPTools() []chat.AnthropicToolDef {
 }
 
 // maxToolRounds limits the number of tool execution round-trips to prevent runaway loops.
-const maxToolRounds = 20
+const maxToolRounds = 8
 
 // sseDeadline is the max duration for a single SSE connection. If the tool loop
 // is still running when we approach this limit, we pause and let the frontend
