@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.6.1] - 2026-03-24
+
+### Added
+- Minecraft expertise in system prompt: server directory structure knowledge, modpack deployment workflow, config file locations, and guidance on using file management tools
+
 ## [v1.6.0] - 2026-03-24
 
 ### Added
