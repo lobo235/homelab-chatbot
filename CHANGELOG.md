@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.7] - 2026-03-24
+
+### Added
+- Admin-only debug log panel: toggle in sidebar, floating panel with timestamped event log, copy-all button
+- Server-side debug SSE events: API round metadata (token counts, stop reasons), tool execution timing, context trimming stats
+- Debug events gated by both admin role AND debug checkbox — never sent to non-admin users
+
 ## [v1.5.6] - 2026-03-24
 
 ### Fixed

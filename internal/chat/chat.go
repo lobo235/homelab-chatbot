@@ -97,6 +97,7 @@ type Request struct {
 	Message        string `json:"message"`
 	ConversationID int64  `json:"conversation_id,omitempty"`
 	VerbosityMode  string `json:"verbosity_mode,omitempty"`
+	Debug          bool   `json:"debug,omitempty"`
 }
 
 // MCPClient wraps the stdio communication with the MCP server subprocess.

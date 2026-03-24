@@ -123,7 +123,7 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		verbosity = req.VerbosityMode
 	}
 
-	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity)
+	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity, req.Debug && user.Role == "admin")
 }
 
 // resolveConversation gets an existing conversation or creates a new one.
@@ -185,7 +185,7 @@ const maxToolRounds = 20
 // auto-continue with a new request. Set conservatively under typical proxy timeouts.
 const sseDeadline = 90 * time.Second
 
-func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string) {
+func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string, isAdmin bool) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -198,6 +198,10 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 	}
 
 	sendEvent := func(event chat.SSEEvent) {
+		// Only send debug events when debug mode is enabled by an admin.
+		if event.Type == "debug" && !isAdmin {
+			return
+		}
 		data, _ := json.Marshal(event)
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
@@ -224,7 +228,14 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		}
 
 		// Trim context to keep token usage manageable.
+		preTrimCount := len(msgs)
 		msgs = h.trimContext(msgs)
+		if len(msgs) < preTrimCount {
+			sendEvent(chat.SSEEvent{
+				Type:    "debug",
+				Message: fmt.Sprintf("context_trimmed from=%d to=%d", preTrimCount, len(msgs)),
+			})
+		}
 
 		eventCh := make(chan chat.SSEEvent, 100)
 		var result *chat.StreamResult
@@ -249,6 +260,12 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		if result.InputTokens > totalInputTokens {
 			totalInputTokens = result.InputTokens
 		}
+
+		// Send debug metadata about this API round.
+		sendEvent(chat.SSEEvent{
+			Type:    "debug",
+			Message: fmt.Sprintf("round=%d input_tokens=%d stop_reason=%s msg_count=%d", round, result.InputTokens, result.StopReason, len(msgs)),
+		})
 
 		// If Claude didn't request tool use, we're done.
 		if result.StopReason != "tool_use" || len(result.ToolUses) == 0 {
@@ -285,7 +302,9 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 			}
 
 			h.Log.Info("executing MCP tool", "tool", tu.Name, "conversation_id", convID)
+			toolStart := time.Now()
 			toolResult, err := h.MCPChat.CallTool(r.Context(), tu.Name, args)
+			toolDuration := time.Since(toolStart)
 
 			status := "done"
 			if err != nil {
@@ -298,6 +317,10 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 				Type:   "tool_done",
 				Name:   tu.Name,
 				Status: status,
+			})
+			sendEvent(chat.SSEEvent{
+				Type:    "debug",
+				Message: fmt.Sprintf("tool=%s duration=%dms status=%s result_len=%d", tu.Name, toolDuration.Milliseconds(), status, len(fmt.Sprint(toolResult))),
 			})
 
 			toolResults = append(toolResults, map[string]interface{}{
