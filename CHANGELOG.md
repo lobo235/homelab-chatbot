@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limit exhaustion returns distinct error message instead of generic "Failed to get response from Claude"
 - Long rate limit waits (>30s) now close the SSE stream cleanly and send a `rate_limit_pause` event; frontend auto-retries after countdown — no user intervention needed
 - Continuation requests after rate limit pause add a "Please continue where you left off." user message to satisfy API requirement that conversations end with a user message
+- SSE connection deadline (90s): long tool-use conversations now auto-pause before the proxy kills the connection, frontend auto-continues with a new request
 
 ### Fixed
 - Rate limit retry wait sends periodic countdown events every 10 seconds to keep SSE connection alive during short waits (≤30s)

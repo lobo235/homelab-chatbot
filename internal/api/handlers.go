@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lobo235/homelab-chatbot/internal/auth"
 	"github.com/lobo235/homelab-chatbot/internal/chat"
@@ -173,6 +174,11 @@ func (h *Handlers) getMCPTools() []chat.AnthropicToolDef {
 // maxToolRounds limits the number of tool execution round-trips to prevent runaway loops.
 const maxToolRounds = 20
 
+// sseDeadline is the max duration for a single SSE connection. If the tool loop
+// is still running when we approach this limit, we pause and let the frontend
+// auto-continue with a new request. Set conservatively under typical proxy timeouts.
+const sseDeadline = 90 * time.Second
+
 func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -191,10 +197,26 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		flusher.Flush()
 	}
 
+	deadline := time.Now().Add(sseDeadline)
 	var fullText strings.Builder
 	var totalInputTokens int64
 
 	for round := 0; round < maxToolRounds; round++ {
+		// If we're approaching the connection deadline, save progress and
+		// tell the frontend to auto-continue with a new request.
+		if round > 0 && time.Until(deadline) < 15*time.Second {
+			h.Log.Warn("SSE deadline approaching, pausing for frontend continuation",
+				"conversation_id", convID, "round", round, "remaining", time.Until(deadline))
+			h.savePartialProgress(convID, fullText.String(), totalInputTokens)
+			sendEvent(chat.SSEEvent{
+				Type:       "rate_limit_pause",
+				Message:    "Processing took too long. Continuing automatically...",
+				RetryAfter: 2,
+			})
+			sendEvent(chat.SSEEvent{Type: "done"})
+			return
+		}
+
 		// Trim context to keep token usage manageable.
 		msgs = h.trimContext(msgs)
 
@@ -287,15 +309,18 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 	}
 
 	sendEvent(chat.SSEEvent{Type: "done"})
+	h.savePartialProgress(convID, fullText.String(), totalInputTokens)
+}
 
-	text := fullText.String()
+// savePartialProgress persists any accumulated assistant text and token usage.
+func (h *Handlers) savePartialProgress(convID int64, text string, inputTokens int64) {
 	if text != "" {
 		if _, err := h.DB.AddMessage(convID, "assistant", text); err != nil {
 			h.Log.Error("store assistant message", "error", err)
 		}
 	}
-	if totalInputTokens > 0 {
-		if err := h.DB.UpdateConversationTokens(convID, totalInputTokens); err != nil {
+	if inputTokens > 0 {
+		if err := h.DB.UpdateConversationTokens(convID, inputTokens); err != nil {
 			h.Log.Error("update tokens", "error", err)
 		}
 	}
