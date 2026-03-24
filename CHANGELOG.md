@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.5.12] - 2026-03-24
+
+### Fixed
+- Truncate tool results to 8KB before storing in conversation history — prevents 50KB log dumps from spiking token usage and causing rate limit loops
+
 ## [v1.5.11] - 2026-03-24
 
 ### Changed

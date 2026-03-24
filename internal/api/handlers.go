@@ -338,10 +338,21 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 				Message: fmt.Sprintf("tool=%s duration=%dms status=%s result_len=%d", tu.Name, toolDuration.Milliseconds(), status, len(fmt.Sprint(toolResult))),
 			})
 
+			// Cap tool result size to prevent token spikes from large outputs (e.g., 50KB logs).
+			resultStr := fmt.Sprint(toolResult)
+			const maxToolResultLen = 8192
+			if len(resultStr) > maxToolResultLen {
+				resultStr = resultStr[:maxToolResultLen] + "\n... [truncated — " + fmt.Sprintf("%d", len(resultStr)-maxToolResultLen) + " bytes omitted]"
+				sendEvent(chat.SSEEvent{
+					Type:    "debug",
+					Message: fmt.Sprintf("tool_result truncated from %d to %d bytes", len(fmt.Sprint(toolResult)), maxToolResultLen),
+				})
+			}
+
 			toolResults = append(toolResults, map[string]interface{}{
 				"type":        "tool_result",
 				"tool_use_id": tu.ID,
-				"content":     toolResult,
+				"content":     resultStr,
 			})
 		}
 
