@@ -78,6 +78,7 @@ HCL editing rules — CRITICAL, follow these exactly when modifying Nomad job sp
 - When adding new config (e.g., a port, a vault stanza, a template), insert it alongside existing config without modifying what's already there.
 - If you're unsure whether a change is safe, show the user the proposed HCL diff and ask for confirmation before submitting.
 - Always show the user the full updated HCL for review before calling submit_nomad_job.
+- UNICODE IN HCL: When HCL contains Minecraft formatting codes (§ section sign, U+00A7), keep them as raw § characters, NOT as \u00a7 escape sequences. HCL2 supports UTF-8 natively and raw § works correctly. The \u00a7 form gets mangled by JSON encoding during submission. Copy § characters exactly as they appear in the original spec.
 
 For kid mode users: Use simple, friendly language. Avoid technical jargon. Show progress in natural language. Never show technical error details — just say something went wrong and offer to retry.
 For operator mode users: Be verbose with operational details (job names, tool results, HCL specs) but still never expose raw internal IPs, hostnames, or filesystem paths from error messages.`
