@@ -146,7 +146,7 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/` | Session | Serve frontend |
+| GET | `/` | None | Serve frontend (SPA handles auth client-side) |
 | POST | `/api/chat` | Session | Send message, stream SSE response |
 | GET | `/api/sessions` | Session | List user's sessions |
 | GET | `/api/sessions/{id}` | Session | Get session with messages |
@@ -181,6 +181,7 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 {"type":"tool_done","name":"...","status":"done|failed"}
 {"type":"rate_limit","message":"Rate limited by API. Retrying in N seconds..."}
 {"type":"rate_limit_pause","message":"...","retry_after":88}
+{"type":"debug","data":{...}}
 {"type":"done"}
 {"type":"error","message":"..."}
 ```
