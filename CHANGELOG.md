@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- System prompt instructs Claude to use at most 3 tools per round and prefer high-level tools — reduces rate limit hits from parallel tool bursts
+- System prompt enforces one-tool-at-a-time step-by-step workflow: call one tool, report to user, wait for confirmation before next step — eliminates parallel tool bursts that caused rate limiting
 - Rate limit retry with exponential backoff: on Anthropic API 429 responses, retries up to 3 times with `Retry-After` header support
 - `rate_limit` SSE event type: frontend shows warning banner when rate limited, clears on retry success
 - Context window trimming: sliding window keeps first message + last N messages, truncates old tool results to reduce token usage
