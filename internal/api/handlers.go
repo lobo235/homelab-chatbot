@@ -396,7 +396,9 @@ func (h *Handlers) executeTool(ctx context.Context, tu chat.ToolUseBlock, convID
 // trackOwnership records or removes server ownership based on tool name.
 func (h *Handlers) trackOwnership(toolName string, args map[string]interface{}, userID int64, ownedServers *[]string) {
 	switch toolName {
-	case "provision_minecraft_server", "create_minecraft_server":
+	case "provision_minecraft_server":
+		// Only record ownership on actual provisioning, not on create_minecraft_server
+		// which only gathers reference specs.
 		serverName, _ := args["name"].(string)
 		if serverName == "" {
 			serverName, _ = args["server_name"].(string)
@@ -421,9 +423,10 @@ func (h *Handlers) trackOwnership(toolName string, args map[string]interface{}, 
 	}
 }
 
-// isCreationTool returns true if the tool name is a server creation tool.
+// isCreationTool returns true if the tool name actually provisions a new server.
+// create_minecraft_server only gathers reference specs — it doesn't create anything.
 func isCreationTool(name string) bool {
-	return name == "provision_minecraft_server" || name == "create_minecraft_server"
+	return name == "provision_minecraft_server"
 }
 
 // savePartialProgress persists any accumulated assistant text and token usage.
