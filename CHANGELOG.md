@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-tenancy Phase 1: Max Servers column in admin users table is now editable (inline number input)
 - Multi-tenancy Phase 1: database migration seeds existing Minecraft servers as owned by admin bootstrap account (user ID 1)
 - Multi-tenancy Phase 1: system prompt includes user's owned server list so Claude enforces per-user server access; admins get unrestricted access
+- Multi-tenancy Phase 3: ownership lifecycle tracking — server creation tools (`provision_minecraft_server`, `create_minecraft_server`) automatically record ownership in the database
+- Multi-tenancy Phase 3: ownership removal on destroy — server destruction tools (`destroy_minecraft_server`, `destroy_minecraft_server_by_name`) automatically remove ownership records
+- Multi-tenancy Phase 3: max_servers enforcement — non-admin users are blocked from creating servers when they reach their limit; tool returns an error instead of executing
+- Multi-tenancy Phase 3: owned server list updated in-flight after creation so subsequent tool calls in the same request reflect the new server
 
 ## [v1.6.2] - 2026-03-24
 

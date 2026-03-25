@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -321,39 +322,8 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		// Execute each tool and collect results.
 		toolResults := []interface{}{}
 		for _, tu := range toolUses {
-			var args map[string]interface{}
-			if err := json.Unmarshal(tu.Input, &args); err != nil {
-				args = map[string]interface{}{}
-			}
-
-			// Inject user context for MCP-level authorization.
-			args["_user_id"] = user.ID
-			args["_user_role"] = user.Role
-			args["_owned_servers"] = strings.Join(ownedServers, ",")
-
-			h.Log.Info("executing MCP tool", "tool", tu.Name, "conversation_id", convID)
-			toolStart := time.Now()
-			toolResult, err := h.MCPChat.CallTool(r.Context(), tu.Name, args)
-			toolDuration := time.Since(toolStart)
-
-			status := "done"
-			if err != nil {
-				status = "failed"
-				h.Log.Error("tool execution failed", "tool", tu.Name, "error", err)
-				toolResult = fmt.Sprintf("Error: %s", err.Error())
-			}
-
-			sendEvent(chat.SSEEvent{
-				Type:   "tool_done",
-				Name:   tu.Name,
-				Status: status,
-			})
-			sendEvent(chat.SSEEvent{
-				Type:    "debug",
-				Message: fmt.Sprintf("tool=%s duration=%dms status=%s result_len=%d", tu.Name, toolDuration.Milliseconds(), status, len(fmt.Sprint(toolResult))),
-			})
-
-			resultStr := truncateToolResult(fmt.Sprint(toolResult), sendEvent)
+			result, _ := h.executeTool(r.Context(), tu, convID, user, &ownedServers, sendEvent)
+			resultStr := truncateToolResult(fmt.Sprint(result), sendEvent)
 
 			toolResults = append(toolResults, map[string]interface{}{
 				"type":        "tool_result",
@@ -371,6 +341,89 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 
 	sendEvent(chat.SSEEvent{Type: "done"})
 	h.savePartialProgress(convID, fullText.String(), totalInputTokens)
+}
+
+// executeTool runs a single MCP tool call with pre-execution limit checks and
+// post-execution ownership tracking. It returns the tool result and status.
+func (h *Handlers) executeTool(ctx context.Context, tu chat.ToolUseBlock, convID int64, user *database.User, ownedServers *[]string, sendEvent func(chat.SSEEvent)) (interface{}, string) {
+	var args map[string]interface{}
+	if err := json.Unmarshal(tu.Input, &args); err != nil {
+		args = map[string]interface{}{}
+	}
+
+	// Enforce max_servers limit before executing creation tools.
+	if isCreationTool(tu.Name) && user.Role != "admin" {
+		count, _ := h.DB.CountServersByOwner(user.ID)
+		if count >= user.MaxServers {
+			h.Log.Warn("server limit reached", "user", user.ID, "count", count, "max", user.MaxServers)
+			result := fmt.Sprintf("Error: You have reached your server limit (%d/%d). Ask an admin to increase your limit.", count, user.MaxServers)
+			sendEvent(chat.SSEEvent{Type: "tool_done", Name: tu.Name, Status: "failed"})
+			return result, "failed"
+		}
+	}
+
+	// Inject user context for MCP-level authorization.
+	args["_user_id"] = user.ID
+	args["_user_role"] = user.Role
+	args["_owned_servers"] = strings.Join(*ownedServers, ",")
+
+	h.Log.Info("executing MCP tool", "tool", tu.Name, "conversation_id", convID)
+	toolStart := time.Now()
+	toolResult, err := h.MCPChat.CallTool(ctx, tu.Name, args)
+	toolDuration := time.Since(toolStart)
+
+	status := "done"
+	if err != nil {
+		status = "failed"
+		h.Log.Error("tool execution failed", "tool", tu.Name, "error", err)
+		toolResult = fmt.Sprintf("Error: %s", err.Error())
+	}
+
+	sendEvent(chat.SSEEvent{
+		Type:    "debug",
+		Message: fmt.Sprintf("tool=%s duration=%dms status=%s result_len=%d", tu.Name, toolDuration.Milliseconds(), status, len(fmt.Sprint(toolResult))),
+	})
+	sendEvent(chat.SSEEvent{Type: "tool_done", Name: tu.Name, Status: status})
+
+	// Track ownership lifecycle after successful tool execution.
+	if status == "done" {
+		h.trackOwnership(tu.Name, args, user.ID, ownedServers)
+	}
+
+	return toolResult, status
+}
+
+// trackOwnership records or removes server ownership based on tool name.
+func (h *Handlers) trackOwnership(toolName string, args map[string]interface{}, userID int64, ownedServers *[]string) {
+	switch toolName {
+	case "provision_minecraft_server", "create_minecraft_server":
+		serverName, _ := args["name"].(string)
+		if serverName == "" {
+			serverName, _ = args["server_name"].(string)
+		}
+		if serverName != "" {
+			if err := h.DB.CreateServerOwnership(serverName, userID); err != nil {
+				h.Log.Warn("failed to record server ownership", "server", serverName, "user", userID, "error", err)
+			} else {
+				h.Log.Info("server ownership recorded", "server", serverName, "user", userID)
+				*ownedServers = append(*ownedServers, serverName)
+			}
+		}
+	case "destroy_minecraft_server", "destroy_minecraft_server_by_name":
+		serverName, _ := args["name"].(string)
+		if serverName != "" {
+			if err := h.DB.DeleteServerOwnership(serverName); err != nil {
+				h.Log.Warn("failed to remove server ownership", "server", serverName, "error", err)
+			} else {
+				h.Log.Info("server ownership removed", "server", serverName)
+			}
+		}
+	}
+}
+
+// isCreationTool returns true if the tool name is a server creation tool.
+func isCreationTool(name string) bool {
+	return name == "provision_minecraft_server" || name == "create_minecraft_server"
 }
 
 // savePartialProgress persists any accumulated assistant text and token usage.
