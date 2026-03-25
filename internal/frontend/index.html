@@ -18,7 +18,7 @@ a:hover{text-decoration:underline}
 .app{display:flex;height:100vh;overflow:hidden}
 .sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:margin-left .2s}
 .sidebar.hidden{margin-left:-260px}
-.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 /* Header */
 .header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
 .header h1{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
@@ -99,6 +99,10 @@ a:hover{text-decoration:underline}
 .tool-status.failed{color:var(--danger)}
 /* Response separator */
 .response-divider{border:none;border-top:1px solid var(--border);margin:12px 0 8px 0}
+/* New content indicator */
+.new-content-indicator{position:absolute;bottom:80px;right:24px;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.3);animation:pulse-bounce 1.5s ease-in-out infinite}
+.new-content-indicator:hover{opacity:.85}
+@keyframes pulse-bounce{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(4px);opacity:.7}}
 /* Debug panel */
 .debug-panel{position:fixed;bottom:0;right:0;width:480px;max-height:50vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) 0 0 0;z-index:150;display:flex;flex-direction:column;font-family:var(--mono);font-size:.75rem}
 .debug-panel-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -259,7 +263,7 @@ a:hover{text-decoration:underline}
     </div>
 
     <!-- Chat messages -->
-    <div class="chat-area" x-ref="chatArea">
+    <div class="chat-area" x-ref="chatArea" @scroll="if(isNearBottom()) hasNewContent = false">
       <!-- Welcome panel (shown when no messages) -->
       <div x-show="messages.length === 0 && !streaming" class="welcome">
         <h2>Hi! I'm your Minecraft server assistant.</h2>
@@ -304,6 +308,11 @@ a:hover{text-decoration:underline}
           <div x-show="streamBuffer === '' && toolCalls.length === 0 && !rateLimitMessage" class="typing"><span></span><span></span><span></span></div>
         </div>
       </div>
+    </div>
+
+    <!-- New content indicator -->
+    <div x-show="hasNewContent" @click="forceScrollToBottom" class="new-content-indicator" x-cloak>
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M10 14l-5-5h10l-5 5z"/></svg>
     </div>
 
     <!-- Input -->
@@ -505,6 +514,7 @@ function chatApp() {
     streaming: false,
     streamBuffer: '',
     afterToolDone: false,
+    hasNewContent: false,
     toolCalls: [],
     abortController: null,
     rateLimitMessage: '',
@@ -709,6 +719,7 @@ function chatApp() {
       this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.rateLimitMessage = '';
+      this.hasNewContent = false;
       this.loadSessions();
       this.loadServers();
       this.scrollToBottom();
@@ -863,11 +874,28 @@ function chatApp() {
       this.scrollToBottom();
     },
 
+    isNearBottom() {
+      const el = this.$refs.chatArea;
+      if (!el) return true;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    },
+
     scrollToBottom() {
       this.$nextTick(() => {
-        const el = this.$refs.chatArea;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (this.isNearBottom()) {
+          const el = this.$refs.chatArea;
+          if (el) el.scrollTop = el.scrollHeight;
+          this.hasNewContent = false;
+        } else if (this.streaming) {
+          this.hasNewContent = true;
+        }
       });
+    },
+
+    forceScrollToBottom() {
+      const el = this.$refs.chatArea;
+      if (el) el.scrollTop = el.scrollHeight;
+      this.hasNewContent = false;
     },
 
     toggleMode() {
