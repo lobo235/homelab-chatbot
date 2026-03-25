@@ -641,7 +641,8 @@ function chatApp() {
       this.streaming = true;
       this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
-      this.scrollToBottom();
+      this.hasNewContent = false;
+      this.forceScrollToBottom();
       this.debugEvent('user_msg', text);
       this.debugEvent('request', {conversation_id: this.currentSession || 'new'});
 
