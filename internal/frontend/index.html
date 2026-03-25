@@ -210,12 +210,19 @@ a:hover{text-decoration:underline}
   <aside class="sidebar" :class="{'hidden': !sidebarOpen}">
     <div class="sidebar-header">
       <h2>Conversations</h2>
-      <button class="btn btn-sm btn-accent" @click="newConversation">+ New</button>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-sm" x-show="sessions.length > 0" @click="managingChats = !managingChats" x-text="managingChats ? 'Done' : 'Manage'" style="font-size:.75rem;padding:4px 8px"></button>
+        <button class="btn btn-sm btn-accent" @click="newConversation">+ New</button>
+      </div>
+    </div>
+    <div x-show="managingChats && sessions.length > 0" style="padding:4px 12px">
+      <button class="btn btn-sm btn-danger" style="width:100%;font-size:.75rem" @click="deleteAllChats">Delete All Chats</button>
     </div>
     <div class="session-list">
       <template x-for="s in sessions" :key="s.id">
-        <div class="session-item" :class="{'active': s.id === currentSession}" @click="loadSession(s.id)">
-          <span x-text="s.title || 'New chat'"></span>
+        <div class="session-item" :class="{'active': s.id === currentSession}" style="display:flex;align-items:center;gap:4px">
+          <span x-text="s.title || 'New chat'" @click="loadSession(s.id)" style="flex:1;overflow:hidden;text-overflow:ellipsis;cursor:pointer"></span>
+          <button x-show="managingChats" @click.stop="deleteChat(s.id)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1rem;padding:0 4px;flex-shrink:0">&times;</button>
         </div>
       </template>
       <div x-show="sessions.length === 0" style="padding:20px;text-align:center;color:var(--text-dim);font-size:.85rem">No conversations yet</div>
@@ -506,6 +513,7 @@ function chatApp() {
   return {
     sidebarOpen: window.innerWidth > 768,
     showAdmin: false,
+    managingChats: false,
     messages: [],
     sessions: [],
     servers: [],
@@ -989,6 +997,26 @@ function chatApp() {
         body: JSON.stringify({owner_id: newOwnerId}),
       });
       this.loadAdminData();
+    },
+
+    async deleteChat(id) {
+      await fetch(`/api/sessions/${id}`, {method: 'DELETE'});
+      if (this.currentSession === id) {
+        this.currentSession = null;
+        this.messages = [];
+      }
+      this.loadSessions();
+    },
+
+    async deleteAllChats() {
+      if (!confirm('Delete ALL conversations? This cannot be undone.')) return;
+      for (const s of this.sessions) {
+        await fetch(`/api/sessions/${s.id}`, {method: 'DELETE'});
+      }
+      this.currentSession = null;
+      this.messages = [];
+      this.managingChats = false;
+      this.loadSessions();
     },
   };
 }
