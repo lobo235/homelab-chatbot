@@ -876,10 +876,14 @@ function chatApp() {
       this.streamBuffer = ''; this.afterToolDone = false;
       this.toolCalls = [];
       this.rateLimitMessage = '';
-      this.hasNewContent = false;
+      // Don't force-scroll — user may be selecting text. Show indicator instead.
+      if (!this.isNearBottom()) {
+        this.hasNewContent = true;
+      } else {
+        this.hasNewContent = false;
+      }
       this.loadSessions();
       this.loadServers();
-      this.scrollToBottom();
     },
 
     handleSSE(event) {
