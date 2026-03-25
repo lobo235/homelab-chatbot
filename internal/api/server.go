@@ -41,6 +41,7 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 		Log:      log,
 		Gateway:  gateway.NewClient(),
 		Gateways: gateways,
+		MCPChat:  mcpClient,
 	}
 
 	// Unauthenticated routes.
@@ -74,6 +75,10 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	mux.Handle("GET /admin/gateways", adminMw(http.HandlerFunc(ah.HandleGateways)))
 	mux.Handle("GET /admin/usage", adminMw(http.HandlerFunc(ah.HandleUsage)))
 	mux.Handle("GET /admin/logs", adminMw(http.HandlerFunc(ah.HandleLogs)))
+	mux.Handle("GET /admin/modpack-kb", adminMw(http.HandlerFunc(ah.HandleListModpackKB)))
+	mux.Handle("GET /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleGetModpackKB)))
+	mux.Handle("PUT /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleSaveModpackKB)))
+	mux.Handle("DELETE /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleDeleteModpackKB)))
 
 	// Frontend (catch-all for SPA).
 	mux.HandleFunc("GET /", frontend.HandleIndex)

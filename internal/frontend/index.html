@@ -430,6 +430,151 @@ a:hover{text-decoration:underline}
           </table>
           <div x-show="adminServers.length === 0" style="color:var(--text-dim);font-size:.85rem;padding:8px">No server ownership records</div>
         </div>
+
+        <!-- Modpack Knowledge Base -->
+        <div style="margin-top:20px">
+          <h3 style="margin-bottom:12px">Modpack Knowledge Base</h3>
+
+          <!-- List view -->
+          <div x-show="!editingModpack">
+            <button class="btn btn-accent btn-sm" @click="newModpack()" style="margin-bottom:12px">Add Modpack</button>
+            <table class="admin-table" x-show="adminModpackKB.length > 0">
+              <thead><tr><th>Name</th><th>Modloader</th><th>MC Version</th><th>Server Pack</th><th>Versions</th><th>Actions</th></tr></thead>
+              <tbody>
+                <template x-for="mp in adminModpackKB" :key="mp.slug">
+                  <tr>
+                    <td x-text="mp.name"></td>
+                    <td x-text="mp.modloader_type"></td>
+                    <td x-text="mp.minecraft_version || '-'"></td>
+                    <td x-text="mp.has_server_pack ? 'Yes' : 'No'"></td>
+                    <td x-text="(mp.versions || []).length"></td>
+                    <td style="white-space:nowrap">
+                      <button class="btn btn-sm" @click="editModpack(mp.slug)">Edit</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteModpack(mp.slug)">Delete</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div x-show="adminModpackKB.length === 0" style="color:var(--text-dim);font-size:.85rem;padding:8px">No modpack knowledge entries</div>
+          </div>
+
+          <!-- Edit/Create form -->
+          <div x-show="editingModpack" style="border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+            <h4 x-text="editingModpack?.slug ? 'Edit Modpack: ' + editingModpack.name : 'New Modpack'" style="margin:0 0 12px 0"></h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+              <div class="form-group" style="margin:0">
+                <label>Name</label>
+                <input type="text" x-model="editingModpack.name" placeholder="e.g. All The Mods 10">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>CurseForge ID</label>
+                <input type="number" x-model.number="editingModpack.curseforge_id" placeholder="Optional">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Modloader Type</label>
+                <select x-model="editingModpack.modloader_type" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);width:100%">
+                  <option value="forge">Forge</option>
+                  <option value="neoforge">NeoForge</option>
+                  <option value="fabric">Fabric</option>
+                  <option value="quilt">Quilt</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Modloader Strategy</label>
+                <select x-model="editingModpack.modloader_strategy" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);width:100%">
+                  <option value="bundled_in_server_pack">Bundled in Server Pack</option>
+                  <option value="separate_install">Separate Install</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>MC Version</label>
+                <input type="text" x-model="editingModpack.minecraft_version" placeholder="e.g. 1.21.1">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Server Pack Pattern</label>
+                <input type="text" x-model="editingModpack.server_pack_pattern" placeholder="Optional pattern">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>CPU (MHz)</label>
+                <input type="number" x-model.number="editingModpack.recommended_cpu_mhz" placeholder="e.g. 4000">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Memory (MB)</label>
+                <input type="number" x-model.number="editingModpack.recommended_memory_mb" placeholder="e.g. 12288">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Init Memory</label>
+                <input type="text" x-model="editingModpack.init_memory" placeholder="e.g. 4G">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Max Memory</label>
+                <input type="text" x-model="editingModpack.max_memory" placeholder="e.g. 10G">
+              </div>
+              <div class="form-group" style="margin:0;display:flex;align-items:center;gap:8px;padding-top:24px">
+                <input type="checkbox" x-model="editingModpack.has_server_pack" id="has_server_pack">
+                <label for="has_server_pack" style="margin:0">Has Server Pack</label>
+              </div>
+            </div>
+            <div class="form-group" style="margin:12px 0 0 0">
+              <label>Deployment Notes</label>
+              <textarea x-model="editingModpack.deployment_notes" rows="3" style="width:100%;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+
+            <!-- Versions sub-section -->
+            <div style="margin-top:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <h5 style="margin:0">Versions</h5>
+                <button class="btn btn-sm btn-accent" @click="addVersion()">Add Version</button>
+              </div>
+              <template x-for="(ver, vi) in (editingModpack.versions || [])" :key="vi">
+                <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;position:relative">
+                  <button class="btn btn-sm btn-danger" @click="removeVersion(vi)" style="position:absolute;top:8px;right:8px;font-size:.75rem">Remove</button>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 12px">
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Pack Version</label>
+                      <input type="text" x-model="ver.pack_version" placeholder="e.g. 1.0.8" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">MC Version</label>
+                      <input type="text" x-model="ver.minecraft_version" placeholder="e.g. 1.20.1" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Modloader Type</label>
+                      <input type="text" x-model="ver.modloader_type" placeholder="Override or leave empty" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Modloader Version</label>
+                      <input type="text" x-model="ver.modloader_version" placeholder="e.g. 47.3.0" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Java Version</label>
+                      <input type="number" x-model.number="ver.java_version" placeholder="e.g. 17" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Docker Tag</label>
+                      <input type="text" x-model="ver.itzg_docker_tag" placeholder="e.g. java21" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Server Pack File ID</label>
+                      <input type="number" x-model.number="ver.server_pack_file_id" placeholder="CurseForge file ID" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0;grid-column:span 2">
+                      <label style="font-size:.75rem">Notes</label>
+                      <input type="text" x-model="ver.deployment_notes" placeholder="Version-specific notes" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!(editingModpack.versions || []).length" style="color:var(--text-dim);font-size:.85rem;padding:8px">No version entries yet</div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:16px">
+              <button class="btn btn-accent" @click="saveModpack()">Save</button>
+              <button class="btn" @click="editingModpack = null">Cancel</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -535,6 +680,8 @@ function chatApp() {
     adminUsers: [],
     adminServers: [],
     adminUsage: [],
+    adminModpackKB: [],
+    editingModpack: null,
     newUser: {username: '', password: '', role: 'user'},
 
     get promptChips() {
@@ -953,6 +1100,7 @@ function chatApp() {
         this.adminUsage = usage || [];
         this.adminServers = servers || [];
       } catch {}
+      this.loadModpackKB();
     },
 
     async toggleUserActive(user) {
@@ -997,6 +1145,73 @@ function chatApp() {
         body: JSON.stringify({owner_id: newOwnerId}),
       });
       this.loadAdminData();
+    },
+
+    async loadModpackKB() {
+      try {
+        const resp = await fetch('/admin/modpack-kb');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        this.adminModpackKB = Array.isArray(data) ? data : (data.modpacks || []);
+      } catch {}
+    },
+
+    async editModpack(slug) {
+      try {
+        const resp = await fetch(`/admin/modpack-kb/${slug}`);
+        if (!resp.ok) return;
+        const mp = await resp.json();
+        mp.versions = mp.versions || [];
+        this.editingModpack = mp;
+      } catch {}
+    },
+
+    newModpack() {
+      this.editingModpack = {
+        slug: '', name: '', curseforge_id: 0,
+        modloader_type: 'forge', modloader_strategy: 'bundled_in_server_pack',
+        has_server_pack: true, server_pack_pattern: '',
+        minecraft_version: '', recommended_cpu_mhz: 0, recommended_memory_mb: 0,
+        init_memory: '', max_memory: '', deployment_notes: '',
+        versions: [],
+      };
+    },
+
+    async saveModpack() {
+      const mp = this.editingModpack;
+      if (!mp || !mp.name) return;
+      // Generate slug from name if not set.
+      const slug = mp.slug || mp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      try {
+        await fetch(`/admin/modpack-kb/${slug}`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(mp),
+        });
+        this.editingModpack = null;
+        this.loadModpackKB();
+      } catch {}
+    },
+
+    async deleteModpack(slug) {
+      if (!confirm(`Delete modpack knowledge for "${slug}"?`)) return;
+      try {
+        await fetch(`/admin/modpack-kb/${slug}`, {method: 'DELETE'});
+        this.loadModpackKB();
+      } catch {}
+    },
+
+    addVersion() {
+      if (!this.editingModpack.versions) this.editingModpack.versions = [];
+      this.editingModpack.versions.push({
+        pack_version: '', minecraft_version: '', modloader_type: '',
+        modloader_version: '', java_version: 0, itzg_docker_tag: '',
+        server_pack_file_id: 0, deployment_notes: '',
+      });
+    },
+
+    removeVersion(index) {
+      this.editingModpack.versions.splice(index, 1);
     },
 
     async deleteChat(id) {

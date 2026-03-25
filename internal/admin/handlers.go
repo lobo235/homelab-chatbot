@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lobo235/homelab-chatbot/internal/auth"
+	"github.com/lobo235/homelab-chatbot/internal/chat"
 	"github.com/lobo235/homelab-chatbot/internal/config"
 	"github.com/lobo235/homelab-chatbot/internal/database"
 	"github.com/lobo235/homelab-chatbot/internal/gateway"
@@ -22,6 +23,7 @@ type Handlers struct {
 	Log      *slog.Logger
 	Gateway  *gateway.Client
 	Gateways []config.GatewayConfig
+	MCPChat  *chat.MCPClient
 }
 
 // HandleListUsers processes GET /admin/users.
@@ -344,6 +346,138 @@ func (h *Handlers) HandleReassignOwnership(w http.ResponseWriter, r *http.Reques
 	}
 	h.Log.Info("server ownership reassigned by admin", "server", name, "new_owner", body.OwnerID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "reassigned", "server": name})
+}
+
+// HandleListModpackKB processes GET /admin/modpack-kb.
+func (h *Handlers) HandleListModpackKB(w http.ResponseWriter, r *http.Request) {
+	if h.MCPChat == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_mcp", "MCP client not available")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.MCPChat.CallTool(ctx, "list_modpack_knowledge", map[string]interface{}{})
+	if err != nil {
+		h.Log.Error("list modpack KB failed", "error", err)
+		writeError(w, http.StatusBadGateway, "mcp_error", "Failed to list modpack knowledge")
+		return
+	}
+
+	// Forward the raw JSON result from MCP.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(result))
+}
+
+// HandleGetModpackKB processes GET /admin/modpack-kb/{slug}.
+func (h *Handlers) HandleGetModpackKB(w http.ResponseWriter, r *http.Request) {
+	if h.MCPChat == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_mcp", "MCP client not available")
+		return
+	}
+
+	slug := r.PathValue("slug")
+	if slug == "" {
+		writeError(w, http.StatusBadRequest, "missing_slug", "Slug is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.MCPChat.CallTool(ctx, "get_modpack_knowledge", map[string]interface{}{
+		"query": slug,
+	})
+	if err != nil {
+		h.Log.Error("get modpack KB failed", "error", err, "slug", slug)
+		writeError(w, http.StatusBadGateway, "mcp_error", "Failed to get modpack knowledge")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(result))
+}
+
+// HandleSaveModpackKB processes PUT /admin/modpack-kb/{slug}.
+func (h *Handlers) HandleSaveModpackKB(w http.ResponseWriter, r *http.Request) {
+	if h.MCPChat == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_mcp", "MCP client not available")
+		return
+	}
+
+	slug := r.PathValue("slug")
+	if slug == "" {
+		writeError(w, http.StatusBadRequest, "missing_slug", "Slug is required")
+		return
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "Invalid request body")
+		return
+	}
+
+	// Ensure slug is set in the args.
+	body["slug"] = slug
+
+	// Convert versions array to JSON string if present, as the MCP tool expects it.
+	if versions, ok := body["versions"]; ok {
+		versionsJSON, err := json.Marshal(versions)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_body", "Invalid versions data")
+			return
+		}
+		body["versions"] = string(versionsJSON)
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.MCPChat.CallTool(ctx, "save_modpack_knowledge", body)
+	if err != nil {
+		h.Log.Error("save modpack KB failed", "error", err, "slug", slug)
+		writeError(w, http.StatusBadGateway, "mcp_error", "Failed to save modpack knowledge")
+		return
+	}
+
+	h.Log.Info("modpack KB saved by admin", "slug", slug)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(result))
+}
+
+// HandleDeleteModpackKB processes DELETE /admin/modpack-kb/{slug}.
+func (h *Handlers) HandleDeleteModpackKB(w http.ResponseWriter, r *http.Request) {
+	if h.MCPChat == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_mcp", "MCP client not available")
+		return
+	}
+
+	slug := r.PathValue("slug")
+	if slug == "" {
+		writeError(w, http.StatusBadRequest, "missing_slug", "Slug is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.MCPChat.CallTool(ctx, "delete_modpack_knowledge", map[string]interface{}{
+		"slug": slug,
+	})
+	if err != nil {
+		h.Log.Error("delete modpack KB failed", "error", err, "slug", slug)
+		writeError(w, http.StatusBadGateway, "mcp_error", "Failed to delete modpack knowledge")
+		return
+	}
+
+	h.Log.Info("modpack KB deleted by admin", "slug", slug)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(result))
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
