@@ -307,6 +307,45 @@ func (h *Handlers) HandleGateways(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
+// HandleDeleteOwnership processes DELETE /admin/servers/{name}/ownership.
+func (h *Handlers) HandleDeleteOwnership(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "missing_name", "Server name required")
+		return
+	}
+	if err := h.DB.DeleteServerOwnership(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "Failed to delete ownership")
+		return
+	}
+	h.Log.Info("server ownership deleted by admin", "server", name)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "server": name})
+}
+
+// HandleReassignOwnership processes PUT /admin/servers/{name}/ownership.
+func (h *Handlers) HandleReassignOwnership(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "missing_name", "Server name required")
+		return
+	}
+	var body struct {
+		OwnerID int64 `json:"owner_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.OwnerID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid_body", "owner_id is required")
+		return
+	}
+	// Delete existing ownership and create new one.
+	_ = h.DB.DeleteServerOwnership(name)
+	if err := h.DB.CreateServerOwnership(name, body.OwnerID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "Failed to reassign ownership")
+		return
+	}
+	h.Log.Info("server ownership reassigned by admin", "server", name, "new_owner", body.OwnerID)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reassigned", "server": name})
+}
+
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

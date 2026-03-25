@@ -69,6 +69,8 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	mux.Handle("PUT /admin/users/{id}/limits", adminMw(http.HandlerFunc(ah.HandleSetUserLimits)))
 	mux.Handle("GET /admin/servers", adminMw(http.HandlerFunc(ah.HandleListAllServers)))
 	mux.Handle("POST /admin/servers/{name}/stop", adminMw(http.HandlerFunc(ah.HandleStopServer)))
+	mux.Handle("DELETE /admin/servers/{name}/ownership", adminMw(http.HandlerFunc(ah.HandleDeleteOwnership)))
+	mux.Handle("PUT /admin/servers/{name}/ownership", adminMw(http.HandlerFunc(ah.HandleReassignOwnership)))
 	mux.Handle("GET /admin/gateways", adminMw(http.HandlerFunc(ah.HandleGateways)))
 	mux.Handle("GET /admin/usage", adminMw(http.HandlerFunc(ah.HandleUsage)))
 	mux.Handle("GET /admin/logs", adminMw(http.HandlerFunc(ah.HandleLogs)))

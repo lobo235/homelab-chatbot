@@ -390,6 +390,30 @@ a:hover{text-decoration:underline}
             </tbody>
           </table>
         </div>
+        <div style="margin-top:20px">
+          <h3 style="margin-bottom:12px">Server Ownership</h3>
+          <table class="admin-table">
+            <thead><tr><th>Server</th><th>Owner</th><th>Actions</th></tr></thead>
+            <tbody>
+              <template x-for="srv in adminServers" :key="srv.name">
+                <tr>
+                  <td x-text="srv.name"></td>
+                  <td>
+                    <select @change="reassignOwnership(srv.name, parseInt($event.target.value))" style="padding:4px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem">
+                      <template x-for="u in adminUsers" :key="u.id">
+                        <option :value="u.id" :selected="u.id === srv.owner_user_id" x-text="u.username"></option>
+                      </template>
+                    </select>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-danger" @click="deleteOwnership(srv.name)">Remove</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="adminServers.length === 0" style="color:var(--text-dim);font-size:.85rem;padding:8px">No server ownership records</div>
+        </div>
       </div>
     </div>
   </div>
@@ -491,6 +515,7 @@ function chatApp() {
     debugMode: false,
     debugLog: [],
     adminUsers: [],
+    adminServers: [],
     adminUsage: [],
     newUser: {username: '', password: '', role: 'user'},
 
@@ -882,12 +907,14 @@ function chatApp() {
     // Admin functions.
     async loadAdminData() {
       try {
-        const [users, usage] = await Promise.all([
+        const [users, usage, servers] = await Promise.all([
           fetch('/admin/users').then(r => r.json()),
           fetch('/admin/usage').then(r => r.json()),
+          fetch('/admin/servers').then(r => r.json()),
         ]);
         this.adminUsers = users;
         this.adminUsage = usage || [];
+        this.adminServers = servers || [];
       } catch {}
     },
 
@@ -916,6 +943,21 @@ function chatApp() {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({max_servers: maxServers, max_tokens: maxTokens}),
+      });
+      this.loadAdminData();
+    },
+
+    async deleteOwnership(serverName) {
+      if (!confirm(`Remove ownership record for ${serverName}?`)) return;
+      await fetch(`/admin/servers/${serverName}/ownership`, {method: 'DELETE'});
+      this.loadAdminData();
+    },
+
+    async reassignOwnership(serverName, newOwnerId) {
+      await fetch(`/admin/servers/${serverName}/ownership`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({owner_id: newOwnerId}),
       });
       this.loadAdminData();
     },
