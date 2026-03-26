@@ -192,7 +192,10 @@ a:hover{text-decoration:underline}
 <div x-data="loginApp()" x-show="!$store.auth.loggedIn" x-cloak>
   <div class="login-page">
     <div class="login-card">
-      <h1>Homelab AI</h1>
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36"><rect x="4" y="4" width="56" height="56" rx="12" fill="#0d1117"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#58a6ff" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#3fb950" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#58a6ff" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
+        <h1>Homelab AI</h1>
+      </div>
       <p style="text-align:center;color:var(--text-dim);margin-bottom:20px">Minecraft Server Manager</p>
       <div x-show="error" class="login-error" x-text="error"></div>
       <form @submit.prevent="login">
@@ -286,6 +289,7 @@ a:hover{text-decoration:underline}
     <div class="header">
       <div style="display:flex;align-items:center;gap:8px">
         <button class="icon-btn" @click="sidebarOpen = !sidebarOpen" title="Toggle sidebar">&#9776;</button>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28"><rect x="4" y="4" width="56" height="56" rx="12" fill="#0d1117"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#58a6ff" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#3fb950" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#58a6ff" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
         <h1>Homelab AI</h1>
       </div>
       <div class="header-actions">
