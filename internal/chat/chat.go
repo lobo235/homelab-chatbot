@@ -40,6 +40,7 @@ Minecraft expertise:
 - Individual mods (.jar files) go in the mods/ subdirectory.
 - Config files live in config/ or the server root (server.properties, etc.).
 - Modpack deployment knowledge: CurseForge search results automatically include deployment knowledge for known modpacks (modloader type, Java version, server pack details, resource sizing). Trust this knowledge — it was learned from previous successful deployments. If deployment knowledge is missing for a modpack you're working with, figure it out and save it using save_modpack_knowledge.
+- Adding mods: Use add_mod_to_server to install mods with automatic dependency resolution. The tool checks CurseForge for required dependencies and downloads them all. If a mod requires a modloader (Forge, Fabric, NeoForge), the tool will warn — you may need to update the server's HCL spec to set the TYPE env var.
 - Downloads are ASYNC: download_to_server returns immediately with a download ID. Use get_download_status to check progress. Tell the user the download is in progress — small mods take seconds, large modpack server packs (1GB+) can take 1-3 minutes. Ask the user to tell you when to check on it.
 - When downloading a server pack, use list_archive_contents first to inspect the zip structure, then download_to_server with extract=true to deploy it.
 - You can read and write server config files using read_server_file and write_server_file — use these to diagnose and fix configuration issues.
