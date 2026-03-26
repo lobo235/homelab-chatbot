@@ -22,9 +22,11 @@ type Process struct {
 }
 
 // allowedEnvKeys lists environment variables that may be passed to the MCP
-// server subprocess. Everything else (ANTHROPIC_API_KEY, SESSION_SECRET,
-// ADMIN_PASSWORD, etc.) is deliberately excluded.
+// server subprocess. Everything else (SESSION_SECRET, ADMIN_PASSWORD, etc.)
+// is deliberately excluded.
 var allowedEnvKeys = map[string]bool{
+	"ANTHROPIC_API_KEY":          true,
+	"DISCOVERY_TEMP_DIR":         true,
 	"NOMAD_GATEWAY_URL":          true,
 	"NOMAD_GATEWAY_KEY":          true,
 	"ADGUARD_GATEWAY_URL":        true,
