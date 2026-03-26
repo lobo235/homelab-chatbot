@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Toast notifications now wrap long text (up to 3 lines) instead of truncating with ellipsis, with hover tooltip for full text
+
 ## [v1.10.0] - 2026-03-26
 
 ### Changed

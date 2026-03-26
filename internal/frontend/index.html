@@ -63,7 +63,7 @@ a:hover{text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes toastIn{from{opacity:0;transform:translateX(100%)}to{opacity:1;transform:translateX(0)}}
 .toast-body{min-width:0;flex:1}
-.toast-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-all}
 .toast-detail{font-size:.75rem;color:var(--text-dim);margin-top:2px}
 .toast-close{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.9rem;padding:0 0 0 4px;line-height:1}
 .toast-close:hover{color:var(--text)}
@@ -285,7 +285,7 @@ a:hover{text-decoration:underline}
         <span class="toast-icon" x-show="op.status === 'done'" style="color:var(--accent2,#22c55e)">&#10003;</span>
         <span class="toast-icon" x-show="op.status === 'failed'" style="color:var(--danger,#f87171)">&#10007;</span>
         <div class="toast-body">
-          <div class="toast-title" x-text="op.description"></div>
+          <div class="toast-title" x-text="op.description" :title="op.description"></div>
           <div class="toast-detail" x-text="op.status === 'pending' ? formatElapsed(op.elapsed_seconds) + ' elapsed' : (op.message || op.status)"></div>
         </div>
         <button class="toast-close" @click="dismissToast(op.op_id)" x-show="op.status !== 'pending'">&times;</button>
