@@ -51,14 +51,22 @@ a:hover{text-decoration:underline}
 .status-unknown{background:var(--text-dim)}
 .server-addr{font-size:.75rem;color:var(--text-dim);cursor:pointer}
 .server-addr:hover{color:var(--accent)}
-/* Async operations panel */
-.async-ops-panel{border-top:1px solid var(--border);padding:12px;max-height:200px;overflow-y:auto}
-.async-ops-panel h3{font-size:.8rem;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
-.async-op-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.85rem}
-.async-op-icon{font-size:1rem;flex-shrink:0;line-height:1}
-.async-op-spinner{animation:spin 1.5s linear infinite;display:inline-block}
+/* Floating toast notifications */
+.toast-container{position:fixed;top:60px;right:16px;z-index:1000;display:flex;flex-direction:column;gap:8px;max-width:340px;pointer-events:none}
+.toast{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:flex-start;gap:10px;font-size:.85rem;animation:toastIn .3s ease-out;transition:opacity .3s,transform .3s}
+.toast.toast-exit{opacity:0;transform:translateX(100%)}
+.toast-pending{border-left:3px solid var(--warning,#f59e0b)}
+.toast-done{border-left:3px solid var(--accent2,#22c55e)}
+.toast-failed{border-left:3px solid var(--danger,#f87171)}
+.toast-icon{font-size:1.1rem;flex-shrink:0;line-height:1;margin-top:1px}
+.toast-spinner{animation:spin 1.5s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
-.async-op-detail{font-size:.75rem;color:var(--text-dim)}
+@keyframes toastIn{from{opacity:0;transform:translateX(100%)}to{opacity:1;transform:translateX(0)}}
+.toast-body{min-width:0;flex:1}
+.toast-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast-detail{font-size:.75rem;color:var(--text-dim);margin-top:2px}
+.toast-close{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.9rem;padding:0 0 0 4px;line-height:1}
+.toast-close:hover{color:var(--text)}
 /* Chat area */
 .chat-area{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
 .message{margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto}
@@ -252,21 +260,6 @@ a:hover{text-decoration:underline}
         </div>
       </template>
     </div>
-    <!-- Async operations panel -->
-    <div class="async-ops-panel" x-show="asyncOps.length > 0">
-      <h3>Active Operations</h3>
-      <template x-for="op in asyncOps" :key="op.op_id">
-        <div class="async-op-item">
-          <span class="async-op-icon" x-show="op.status === 'pending'" style="color:var(--warning)"><span class="async-op-spinner">&#9881;</span></span>
-          <span class="async-op-icon" x-show="op.status === 'done'" style="color:var(--accent2)">&#10003;</span>
-          <span class="async-op-icon" x-show="op.status === 'failed'" style="color:var(--danger)">&#10007;</span>
-          <div style="min-width:0">
-            <div x-text="op.description" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-            <div class="async-op-detail" x-text="op.status === 'pending' ? formatElapsed(op.elapsed_seconds) + ' elapsed' : (op.message || op.status)"></div>
-          </div>
-        </div>
-      </template>
-    </div>
     <div class="sidebar-footer">
       <div class="mode-toggle" style="margin-bottom:8px" x-show="$store.auth.user?.role === 'admin'">
         <input type="checkbox" id="operatorMode" :checked="verbosityMode === 'operator'" @change="toggleMode">
@@ -283,6 +276,22 @@ a:hover{text-decoration:underline}
       <div style="font-size:.75rem;color:var(--text-dim);margin-top:8px" x-text="'Signed in as ' + ($store.auth.user?.username || '')"></div>
     </div>
   </aside>
+
+  <!-- Floating toast notifications -->
+  <div class="toast-container">
+    <template x-for="op in asyncOps" :key="op.op_id">
+      <div class="toast" :class="'toast-' + op.status">
+        <span class="toast-icon" x-show="op.status === 'pending'" style="color:var(--warning,#f59e0b)"><span class="toast-spinner">&#9881;</span></span>
+        <span class="toast-icon" x-show="op.status === 'done'" style="color:var(--accent2,#22c55e)">&#10003;</span>
+        <span class="toast-icon" x-show="op.status === 'failed'" style="color:var(--danger,#f87171)">&#10007;</span>
+        <div class="toast-body">
+          <div class="toast-title" x-text="op.description"></div>
+          <div class="toast-detail" x-text="op.status === 'pending' ? formatElapsed(op.elapsed_seconds) + ' elapsed' : (op.message || op.status)"></div>
+        </div>
+        <button class="toast-close" @click="dismissToast(op.op_id)" x-show="op.status !== 'pending'">&times;</button>
+      </div>
+    </template>
+  </div>
 
   <!-- Main -->
   <div class="main">
@@ -1270,6 +1279,10 @@ function chatApp() {
       if (!seconds || seconds < 0) return '0s';
       if (seconds < 60) return seconds + 's';
       return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+    },
+
+    dismissToast(opId) {
+      this.asyncOps = this.asyncOps.filter(o => o.op_id !== opId);
     },
 
     debugEvent(type, data) {

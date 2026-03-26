@@ -379,6 +379,18 @@ func extractOperationID(toolResult string) string {
 	return ""
 }
 
+// extractServerFromResult parses a provision result for the server name.
+func extractServerFromResult(toolResult string) string {
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(toolResult), &parsed); err != nil {
+		return ""
+	}
+	if srv, ok := parsed["server"].(string); ok && srv != "" {
+		return srv
+	}
+	return ""
+}
+
 // extractDownloadStatus parses a get_download_status result for terminal status.
 func extractDownloadStatus(toolResult string) string {
 	var parsed map[string]interface{}
@@ -502,48 +514,78 @@ func (h *Handlers) trackAsyncOps(toolName string, args map[string]interface{}, t
 
 	switch toolName {
 	case "download_to_server":
-		opID := extractOperationID(resultStr)
-		if opID != "" {
-			desc := "downloading file"
-			if url, ok := args["url"].(string); ok && url != "" {
-				desc = "downloading " + url
-				// Truncate long URLs.
-				if len(desc) > 200 {
-					desc = desc[:200] + "..."
-				}
-			}
-			if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, desc); err != nil {
-				h.Log.Warn("failed to track async download", "op_id", opID, "error", err)
-			}
-		}
+		h.trackAsyncDownload(resultStr, args, serverName, convID, userID)
 	case "create_backup":
-		opID := extractOperationID(resultStr)
-		if opID != "" {
-			if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, "creating backup"); err != nil {
-				h.Log.Warn("failed to track async backup", "op_id", opID, "error", err)
-			}
-		}
+		h.trackAsyncCreate(resultStr, "create_backup", serverName, "creating backup", convID, userID)
 	case "trigger_modpack_discovery":
-		opID := extractOperationID(resultStr)
-		if opID == "" {
-			return
-		}
-		packName, _ := args["pack_name"].(string)
-		if packName == "" {
-			packName = opID // fall back to slug
-		}
-		desc := "Learning how to deploy " + packName
-		if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, "", desc); err != nil {
-			h.Log.Warn("failed to track async discovery", "op_id", opID, "error", err)
-		}
+		h.trackAsyncDiscovery(resultStr, args, convID, userID)
+	case "provision_minecraft_server":
+		h.trackAsyncProvision(resultStr, convID, userID)
 	case "get_download_status":
-		downloadID, _ := args["download_id"].(string)
-		if downloadID != "" {
-			if terminalStatus := extractDownloadStatus(resultStr); terminalStatus != "" {
-				if err := h.DB.UpdateAsyncOpStatus(downloadID, terminalStatus); err != nil {
-					h.Log.Warn("failed to update async op status", "op_id", downloadID, "error", err)
-				}
-			}
+		h.trackDownloadStatusUpdate(resultStr, args)
+	}
+}
+
+func (h *Handlers) trackAsyncDownload(resultStr string, args map[string]interface{}, serverName string, convID, userID int64) {
+	opID := extractOperationID(resultStr)
+	if opID == "" {
+		return
+	}
+	desc := "downloading file"
+	if url, ok := args["url"].(string); ok && url != "" {
+		desc = "downloading " + url
+		if len(desc) > 200 {
+			desc = desc[:200] + "..."
+		}
+	}
+	if err := h.DB.CreateAsyncOp(convID, userID, "download_to_server", opID, serverName, desc); err != nil {
+		h.Log.Warn("failed to track async download", "op_id", opID, "error", err)
+	}
+}
+
+func (h *Handlers) trackAsyncCreate(resultStr, toolName, serverName, desc string, convID, userID int64) {
+	opID := extractOperationID(resultStr)
+	if opID == "" {
+		return
+	}
+	if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, desc); err != nil {
+		h.Log.Warn("failed to track async op", "op_id", opID, "error", err)
+	}
+}
+
+func (h *Handlers) trackAsyncDiscovery(resultStr string, args map[string]interface{}, convID, userID int64) {
+	opID := extractOperationID(resultStr)
+	if opID == "" {
+		return
+	}
+	packName, _ := args["pack_name"].(string)
+	if packName == "" {
+		packName = opID
+	}
+	desc := "Learning how to deploy " + packName
+	if err := h.DB.CreateAsyncOp(convID, userID, "trigger_modpack_discovery", opID, "", desc); err != nil {
+		h.Log.Warn("failed to track async discovery", "op_id", opID, "error", err)
+	}
+}
+
+func (h *Handlers) trackAsyncProvision(resultStr string, convID, userID int64) {
+	srvName := extractServerFromResult(resultStr)
+	if srvName == "" {
+		return
+	}
+	if err := h.DB.CreateAsyncOp(convID, userID, "provision_minecraft_server", srvName, srvName, "Starting "+srvName); err != nil {
+		h.Log.Warn("failed to track async provision", "server", srvName, "error", err)
+	}
+}
+
+func (h *Handlers) trackDownloadStatusUpdate(resultStr string, args map[string]interface{}) {
+	downloadID, _ := args["download_id"].(string)
+	if downloadID == "" {
+		return
+	}
+	if terminalStatus := extractDownloadStatus(resultStr); terminalStatus != "" {
+		if err := h.DB.UpdateAsyncOpStatus(downloadID, terminalStatus); err != nil {
+			h.Log.Warn("failed to update async op status", "op_id", downloadID, "error", err)
 		}
 	}
 }

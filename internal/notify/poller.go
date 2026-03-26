@@ -80,14 +80,24 @@ func (p *Poller) poll(ctx context.Context) {
 	}
 }
 
+// healthCheckTimeout is the maximum time to wait for a server to become healthy.
+const healthCheckTimeout = 10 * time.Minute
+
 // statusResponse is the minimal structure parsed from download/backup status results.
 type statusResponse struct {
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	Status  string `json:"status"`
+	Healthy bool   `json:"healthy,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // checkOp polls the status of a single async operation.
 func (p *Poller) checkOp(ctx context.Context, op database.AsyncOp) {
+	// Time out health checks after 10 minutes.
+	if op.ToolName == "provision_minecraft_server" && time.Since(op.CreatedAt) > healthCheckTimeout {
+		p.handleTerminal(op, statusResponse{Status: "failed", Error: "server did not become healthy within 10 minutes"})
+		return
+	}
+
 	toolName, args := p.statusToolFor(op)
 	if toolName == "" {
 		return
@@ -102,6 +112,16 @@ func (p *Poller) checkOp(ctx context.Context, op database.AsyncOp) {
 	var status statusResponse
 	if err := json.Unmarshal([]byte(result), &status); err != nil {
 		p.log.Debug("poller: failed to parse status", "op_id", op.OperationID, "result", result)
+		return
+	}
+
+	// For health checks, map healthy boolean to terminal status.
+	if op.ToolName == "provision_minecraft_server" {
+		if status.Healthy {
+			p.handleTerminal(op, statusResponse{Status: "done"})
+		} else {
+			p.handleProgress(op)
+		}
 		return
 	}
 
@@ -129,6 +149,10 @@ func (p *Poller) statusToolFor(op database.AsyncOp) (string, map[string]interfac
 	case "trigger_modpack_discovery":
 		return "get_discovery_state", map[string]interface{}{
 			"slug": op.OperationID,
+		}
+	case "provision_minecraft_server":
+		return "get_minecraft_server_status", map[string]interface{}{
+			"name": op.OperationID,
 		}
 	default:
 		p.log.Warn("poller: unknown async tool", "tool", op.ToolName)
@@ -199,6 +223,8 @@ func opTypeFromTool(toolName string) string {
 		return "backup"
 	case "trigger_modpack_discovery":
 		return "discovery"
+	case "provision_minecraft_server":
+		return "server_health"
 	default:
 		return toolName
 	}
