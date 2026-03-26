@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.11.0] - 2026-03-26
+
+### Added
+- Floating toast-style notification bubbles (top-right) replace sidebar async ops panel — animated slide-in, auto-dismiss after 30s, manual close button
+- Server health tracking: `provision_minecraft_server` auto-tracked as async op, poller checks health every 10s via `get_minecraft_server_status`, notifies when server is ready (10-min timeout)
+- Logo SVG displayed next to "Homelab AI" title in header and login page
+
+### Changed
+- System prompt requires `get_modpack_knowledge` lookup before creating modpack servers — prevents blindly copying existing (possibly misconfigured) specs
+- System prompt directs Claude to use `trigger_modpack_discovery` for KB population instead of manual CurseForge research
+
 ### Fixed
 - Toast notifications now wrap long text (up to 3 lines) instead of truncating with ellipsis, with hover tooltip for full text
 
