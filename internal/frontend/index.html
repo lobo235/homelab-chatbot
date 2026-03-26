@@ -646,6 +646,9 @@ function loginApp() {
         const data = await r.json();
         Alpine.store('auth').user = data.user;
         Alpine.store('auth').loggedIn = true;
+        // Clear credentials from memory so they don't persist after logout.
+        this.username = '';
+        this.password = '';
       } catch (e) {
         this.error = e.message;
       } finally {
