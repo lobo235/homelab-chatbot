@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.11.1] - 2026-03-26
+
+### Fixed
+- Pass `ANTHROPIC_API_KEY` to MCP subprocess — web search enrichment was silently skipped in production, producing sparse KB entries
+
 ## [v1.11.0] - 2026-03-26
 
 ### Added
