@@ -234,3 +234,90 @@ func TestUserLimits(t *testing.T) {
 		t.Errorf("limits: servers=%d tokens=%d", u2.MaxServers, u2.MaxTokens)
 	}
 }
+
+func TestAsyncOperations(t *testing.T) {
+	db := testDB(t)
+
+	u, _ := db.CreateUser("grace", "hash", "user")
+	conv, _ := db.CreateConversation(u.ID, "Test async ops")
+
+	// Create an async operation.
+	if err := db.CreateAsyncOp(conv.ID, u.ID, "download_to_server", "dl-123", "mc-survival", "downloading mod"); err != nil {
+		t.Fatalf("create async op: %v", err)
+	}
+
+	// List pending ops.
+	ops, err := db.ListPendingOps(conv.ID)
+	if err != nil {
+		t.Fatalf("list pending ops: %v", err)
+	}
+	if len(ops) != 1 {
+		t.Fatalf("got %d ops, want 1", len(ops))
+	}
+	if ops[0].OperationID != "dl-123" || ops[0].ServerName != "mc-survival" || ops[0].Status != "pending" {
+		t.Errorf("unexpected op: %+v", ops[0])
+	}
+
+	// Update to done.
+	if err := db.UpdateAsyncOpStatus("dl-123", "done"); err != nil {
+		t.Fatalf("update status: %v", err)
+	}
+
+	// Should no longer appear in pending.
+	ops2, _ := db.ListPendingOps(conv.ID)
+	if len(ops2) != 0 {
+		t.Errorf("got %d pending ops after done, want 0", len(ops2))
+	}
+
+	// Create another and test CleanOldOps (all ops are recent, so none cleaned).
+	if err := db.CreateAsyncOp(conv.ID, u.ID, "create_backup", "bk-456", "mc-creative", "creating backup"); err != nil {
+		t.Fatalf("create backup op: %v", err)
+	}
+	if err := db.CleanOldOps(); err != nil {
+		t.Fatalf("clean old ops: %v", err)
+	}
+	ops3, _ := db.ListPendingOps(conv.ID)
+	if len(ops3) != 1 {
+		t.Errorf("got %d pending ops after clean, want 1", len(ops3))
+	}
+}
+
+func TestAsyncOpsConversationIsolation(t *testing.T) {
+	db := testDB(t)
+
+	u, _ := db.CreateUser("henry", "hash", "user")
+	conv1, _ := db.CreateConversation(u.ID, "Conv 1")
+	conv2, _ := db.CreateConversation(u.ID, "Conv 2")
+
+	_ = db.CreateAsyncOp(conv1.ID, u.ID, "download_to_server", "dl-aaa", "mc-test1", "download 1")
+	_ = db.CreateAsyncOp(conv2.ID, u.ID, "download_to_server", "dl-bbb", "mc-test2", "download 2")
+
+	ops1, _ := db.ListPendingOps(conv1.ID)
+	ops2, _ := db.ListPendingOps(conv2.ID)
+
+	if len(ops1) != 1 || ops1[0].OperationID != "dl-aaa" {
+		t.Errorf("conv1 ops: %+v", ops1)
+	}
+	if len(ops2) != 1 || ops2[0].OperationID != "dl-bbb" {
+		t.Errorf("conv2 ops: %+v", ops2)
+	}
+}
+
+func TestAsyncOpsCascadeDelete(t *testing.T) {
+	db := testDB(t)
+
+	u, _ := db.CreateUser("iris", "hash", "user")
+	conv, _ := db.CreateConversation(u.ID, "Test cascade")
+
+	_ = db.CreateAsyncOp(conv.ID, u.ID, "download_to_server", "dl-cascade", "mc-test", "test")
+
+	// Delete the conversation — async ops should cascade.
+	if err := db.DeleteConversation(conv.ID); err != nil {
+		t.Fatalf("delete conversation: %v", err)
+	}
+
+	ops, _ := db.ListPendingOps(conv.ID)
+	if len(ops) != 0 {
+		t.Errorf("expected 0 ops after cascade delete, got %d", len(ops))
+	}
+}

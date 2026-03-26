@@ -32,6 +32,7 @@ You have access to MCP tools that let you:
 Important context:
 - The Nomad job "mc-router" is NOT a Minecraft server. It is itzg/mc-router, a reverse proxy that routes incoming Minecraft connections to the correct backend server based on the requested hostname. Never treat it as a Minecraft server — do not check its player count, send RCON commands to it, back it up, or include it in server listings shown to users.
 - Minecraft server jobs follow the naming pattern "mc-{name}" (e.g., mc-atm10, mc-vanilla1). The "mc-router" job is infrastructure, not a server.
+- Naming convention: All MCP tools accept the full Nomad job ID (mc-{name}) as the server_name parameter. The tools handle stripping the "mc-" prefix internally when needed for NFS directories, DNS hostnames, and backups. Always pass "mc-{name}" — never pass the bare name.
 
 Minecraft expertise:
 - You are an expert Minecraft server operator with deep knowledge of server directory structures, mod installation, modpack deployment, and server configuration.
@@ -43,6 +44,7 @@ Minecraft expertise:
 - Adding mods: Use add_mod_to_server to install mods with automatic dependency resolution. The tool auto-detects the server's modloader and picks compatible files. If the mods folder is empty, it prefers NeoForge over Fabric.
 - Switching modloaders: Use set_server_modloader to change a server's modloader. IMPORTANT: Before switching, check the mods/ folder with list_server_files. For each installed mod, search CurseForge to verify it has a version for the new modloader. If most mods are compatible but 1-2 aren't, recommend the user remove those specific incompatible mods first, then switch. If many mods are incompatible, warn the user and suggest they reconsider. After switching, the old mod jars will NOT work — they must be re-downloaded for the new modloader using add_mod_to_server.
 - Downloads are ASYNC: download_to_server returns immediately with a download ID. Use get_download_status to check progress. Tell the user the download is in progress — small mods take seconds, large modpack server packs (1GB+) can take 1-3 minutes. Ask the user to tell you when to check on it.
+- Async operations: When you start async downloads or backups, the system tracks the operation IDs. If you lose track of a download ID, check the pending operations listed at the start of the conversation — they persist across context trimming.
 - When downloading a server pack, use list_archive_contents first to inspect the zip structure, then download_to_server with extract=true to deploy it.
 - You can read and write server config files using read_server_file and write_server_file — use these to diagnose and fix configuration issues.
 - Common config files: server.properties, ops.json, whitelist.json, config/*.toml, config/*.json
@@ -402,7 +404,7 @@ func (e *ErrRateLimitWait) Error() string {
 // On 429 responses, it retries up to maxRetries times with exponential backoff,
 // sending rate_limit SSE events so the frontend can show a waiting indicator.
 // buildRequestBody constructs the Anthropic API request with prompt caching.
-func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool) ([]byte, error) {
+func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool, extraContext string) ([]byte, error) {
 	prompt := systemPrompt
 	if verbosityMode == "kid" {
 		prompt += "\n\nThe current user is in KID MODE. Use simple, friendly language. Avoid technical jargon and HCL. Show progress as natural language steps."
@@ -419,6 +421,10 @@ func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []Anthropi
 			"\nFor non-admin users, reject any request to interact with servers not in this list."
 	} else {
 		prompt += "\n\nThis user does not own any Minecraft servers yet. They can request new servers to be created."
+	}
+
+	if extraContext != "" {
+		prompt += "\n\n" + extraContext
 	}
 
 	model := s.model
@@ -463,8 +469,8 @@ func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []Anthropi
 }
 
 // StreamResponse sends a streaming request to the Claude API and emits SSE events.
-func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool, eventCh chan<- SSEEvent) (*StreamResult, error) {
-	data, err := s.buildRequestBody(messages, tools, verbosityMode, useHaiku, ownedServers, isAdmin)
+func (s *Service) StreamResponse(ctx context.Context, messages []AnthropicMessage, tools []AnthropicToolDef, verbosityMode string, useHaiku bool, ownedServers []string, isAdmin bool, eventCh chan<- SSEEvent, extraContext string) (*StreamResult, error) {
+	data, err := s.buildRequestBody(messages, tools, verbosityMode, useHaiku, ownedServers, isAdmin, extraContext)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}

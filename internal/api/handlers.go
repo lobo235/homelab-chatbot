@@ -133,7 +133,21 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity, req.Debug && user.Role == "admin", user, ownedServerNames)
+	// Build pending async ops context for injection into the system prompt.
+	var asyncContext string
+	if pendingOps, err := h.DB.ListPendingOps(conv.ID); err == nil && len(pendingOps) > 0 {
+		var sb strings.Builder
+		sb.WriteString("Pending async operations for this conversation:\n")
+		for _, op := range pendingOps {
+			fmt.Fprintf(&sb, "- %s ID %q on server %q (%s) — use get_download_status to check\n", op.ToolName, op.OperationID, op.ServerName, op.Description)
+		}
+		asyncContext = sb.String()
+	}
+
+	// Clean up old ops periodically (best-effort, non-blocking).
+	go func() { _ = h.DB.CleanOldOps() }()
+
+	h.streamSSE(w, r, conv.ID, anthropicMsgs, tools, verbosity, req.Debug && user.Role == "admin", user, ownedServerNames, asyncContext)
 }
 
 // resolveConversation gets an existing conversation or creates a new one.
@@ -195,7 +209,7 @@ const maxToolRounds = 8
 // auto-continue with a new request. Set conservatively under typical proxy timeouts.
 const sseDeadline = 90 * time.Second
 
-func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string, debugEnabled bool, user *database.User, ownedServers []string) {
+func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int64, msgs []chat.AnthropicMessage, tools []chat.AnthropicToolDef, verbosity string, debugEnabled bool, user *database.User, ownedServers []string, extraContext string) {
 	isAdmin := user.Role == "admin"
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -253,7 +267,7 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 		var streamErr error
 
 		go func() {
-			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, false, ownedServers, isAdmin, eventCh)
+			result, streamErr = h.Chat.StreamResponse(r.Context(), msgs, tools, verbosity, false, ownedServers, isAdmin, eventCh, extraContext)
 			close(eventCh)
 		}()
 
@@ -343,6 +357,36 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 	h.savePartialProgress(convID, fullText.String(), totalInputTokens)
 }
 
+// extractDownloadID parses a tool result JSON string for a download_id or backup ID field.
+func extractOperationID(toolResult string) string {
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(toolResult), &parsed); err != nil {
+		return ""
+	}
+	// download_to_server returns {"id": "..."} or {"download_id": "..."}
+	if id, ok := parsed["id"].(string); ok && id != "" {
+		return id
+	}
+	if id, ok := parsed["download_id"].(string); ok && id != "" {
+		return id
+	}
+	return ""
+}
+
+// extractDownloadStatus parses a get_download_status result for terminal status.
+func extractDownloadStatus(toolResult string) string {
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(toolResult), &parsed); err != nil {
+		return ""
+	}
+	if status, ok := parsed["status"].(string); ok {
+		if status == "done" || status == "failed" {
+			return status
+		}
+	}
+	return ""
+}
+
 // executeTool runs a single MCP tool call with pre-execution limit checks and
 // post-execution ownership tracking. It returns the tool result and status.
 func (h *Handlers) executeTool(ctx context.Context, tu chat.ToolUseBlock, convID int64, user *database.User, ownedServers *[]string, sendEvent func(chat.SSEEvent)) (interface{}, string) {
@@ -388,6 +432,7 @@ func (h *Handlers) executeTool(ctx context.Context, tu chat.ToolUseBlock, convID
 	// Track ownership lifecycle after successful tool execution.
 	if status == "done" {
 		h.trackOwnership(tu.Name, args, user.ID, ownedServers)
+		h.trackAsyncOps(tu.Name, args, toolResult, convID, user.ID)
 	}
 
 	return toolResult, status
@@ -435,6 +480,49 @@ func (h *Handlers) trackOwnership(toolName string, args map[string]interface{}, 
 						(*ownedServers)[i] = newName
 						break
 					}
+				}
+			}
+		}
+	}
+}
+
+// trackAsyncOps records or updates async operations based on tool results.
+func (h *Handlers) trackAsyncOps(toolName string, args map[string]interface{}, toolResult string, convID, userID int64) {
+	resultStr := fmt.Sprint(toolResult)
+	serverName, _ := args["server_name"].(string)
+	if serverName == "" {
+		serverName, _ = args["name"].(string)
+	}
+
+	switch toolName {
+	case "download_to_server":
+		opID := extractOperationID(resultStr)
+		if opID != "" {
+			desc := "downloading file"
+			if url, ok := args["url"].(string); ok && url != "" {
+				desc = "downloading " + url
+				// Truncate long URLs.
+				if len(desc) > 200 {
+					desc = desc[:200] + "..."
+				}
+			}
+			if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, desc); err != nil {
+				h.Log.Warn("failed to track async download", "op_id", opID, "error", err)
+			}
+		}
+	case "create_backup":
+		opID := extractOperationID(resultStr)
+		if opID != "" {
+			if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, "creating backup"); err != nil {
+				h.Log.Warn("failed to track async backup", "op_id", opID, "error", err)
+			}
+		}
+	case "get_download_status":
+		downloadID, _ := args["download_id"].(string)
+		if downloadID != "" {
+			if terminalStatus := extractDownloadStatus(resultStr); terminalStatus != "" {
+				if err := h.DB.UpdateAsyncOpStatus(downloadID, terminalStatus); err != nil {
+					h.Log.Warn("failed to update async op status", "op_id", downloadID, "error", err)
 				}
 			}
 		}

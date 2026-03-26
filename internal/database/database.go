@@ -63,6 +63,19 @@ type Message struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// AsyncOp represents an in-flight async operation (download, backup, etc.).
+type AsyncOp struct {
+	ID             int64     `json:"id"`
+	ConversationID int64     `json:"conversation_id"`
+	UserID         int64     `json:"user_id"`
+	ToolName       string    `json:"tool_name"`
+	OperationID    string    `json:"operation_id"`
+	ServerName     string    `json:"server_name"`
+	Description    string    `json:"description"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // ServerOwnership records which user owns a provisioned server.
 type ServerOwnership struct {
 	ID         int64     `json:"id"`
@@ -99,6 +112,12 @@ func Open(dataDir string, log *slog.Logger) (*DB, error) {
 	// Set connection limits for SQLite.
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
+
+	// Enable foreign key enforcement (required for ON DELETE CASCADE).
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
 
 	db := &DB{db: sqlDB, log: log}
 	if err := db.migrate(); err != nil {
@@ -155,6 +174,18 @@ func (d *DB) migrate() error {
 			owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS async_operations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			tool_name TEXT NOT NULL,
+			operation_id TEXT NOT NULL,
+			server_name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_async_ops_conversation ON async_operations(conversation_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)`,
@@ -589,6 +620,51 @@ func (d *DB) GetTokenUsage() ([]*TokenUsage, error) {
 		usage = append(usage, u)
 	}
 	return usage, rows.Err()
+}
+
+// --- Async operation tracking ---
+
+// CreateAsyncOp records a new pending async operation.
+func (d *DB) CreateAsyncOp(convID, userID int64, toolName, opID, serverName, description string) error {
+	_, err := d.db.Exec(
+		`INSERT INTO async_operations (conversation_id, user_id, tool_name, operation_id, server_name, description) VALUES (?, ?, ?, ?, ?, ?)`,
+		convID, userID, toolName, opID, serverName, description,
+	)
+	return err
+}
+
+// ListPendingOps returns all pending async operations for a conversation.
+func (d *DB) ListPendingOps(convID int64) ([]*AsyncOp, error) {
+	rows, err := d.db.Query(
+		`SELECT id, conversation_id, user_id, tool_name, operation_id, server_name, description, status, created_at
+		 FROM async_operations WHERE conversation_id = ? AND status = 'pending' ORDER BY id`, convID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list pending ops: %w", err)
+	}
+	defer rows.Close()
+
+	var ops []*AsyncOp
+	for rows.Next() {
+		op := &AsyncOp{}
+		if err := rows.Scan(&op.ID, &op.ConversationID, &op.UserID, &op.ToolName, &op.OperationID, &op.ServerName, &op.Description, &op.Status, &op.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan async op: %w", err)
+		}
+		ops = append(ops, op)
+	}
+	return ops, rows.Err()
+}
+
+// UpdateAsyncOpStatus updates the status of an async operation by its operation ID.
+func (d *DB) UpdateAsyncOpStatus(opID string, status string) error {
+	_, err := d.db.Exec(`UPDATE async_operations SET status = ? WHERE operation_id = ? AND status = 'pending'`, status, opID)
+	return err
+}
+
+// CleanOldOps removes async operations older than 24 hours.
+func (d *DB) CleanOldOps() error {
+	_, err := d.db.Exec(`DELETE FROM async_operations WHERE created_at < datetime('now', '-24 hours')`)
+	return err
 }
 
 // ensureFilePermissions creates the file if it doesn't exist and sets
