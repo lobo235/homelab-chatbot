@@ -420,6 +420,24 @@ func (h *Handlers) trackOwnership(toolName string, args map[string]interface{}, 
 				h.Log.Info("server ownership removed", "server", serverName)
 			}
 		}
+	case "rename_minecraft_server":
+		oldName, _ := args["old_name"].(string)
+		newName, _ := args["new_name"].(string)
+		if oldName != "" && newName != "" {
+			_ = h.DB.DeleteServerOwnership(oldName)
+			if err := h.DB.CreateServerOwnership(newName, userID); err != nil {
+				h.Log.Warn("failed to record renamed server ownership", "old", oldName, "new", newName, "error", err)
+			} else {
+				h.Log.Info("server ownership renamed", "old", oldName, "new", newName, "user", userID)
+				// Update in-flight owned servers list.
+				for i, s := range *ownedServers {
+					if s == oldName {
+						(*ownedServers)[i] = newName
+						break
+					}
+				}
+			}
+		}
 	}
 }
 
