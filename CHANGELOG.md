@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.10.0] - 2026-03-26
+
 ### Changed
 - Increase max_tokens from 8192 to 16384 to use Sonnet's full output capacity (Haiku auto-caps at its own 8192 limit)
 
