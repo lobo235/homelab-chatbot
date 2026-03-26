@@ -14,16 +14,18 @@ import (
 	"github.com/lobo235/homelab-chatbot/internal/database"
 	"github.com/lobo235/homelab-chatbot/internal/frontend"
 	"github.com/lobo235/homelab-chatbot/internal/gateway"
+	"github.com/lobo235/homelab-chatbot/internal/notify"
 )
 
 // Server is the HTTP server for the chatbot.
 type Server struct {
 	httpServer *http.Server
+	handlers   *Handlers
 	log        *slog.Logger
 }
 
 // NewServer creates a new HTTP server with all routes registered.
-func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, gateways []config.GatewayConfig, version string, contextWindowSize int, log *slog.Logger) *Server {
+func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mcpClient *chat.MCPClient, notifyHub *notify.Hub, gateways []config.GatewayConfig, version string, contextWindowSize int, log *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	h := &Handlers{
@@ -31,6 +33,7 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 		Auth:              authSvc,
 		Chat:              chatSvc,
 		MCPChat:           mcpClient,
+		NotifyHub:         notifyHub,
 		Log:               log,
 		Version:           version,
 		ContextWindowSize: contextWindowSize,
@@ -58,6 +61,7 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	mux.Handle("GET /api/sessions/{id}", sessionMw(http.HandlerFunc(h.HandleGetSession)))
 	mux.Handle("DELETE /api/sessions/{id}", sessionMw(http.HandlerFunc(h.HandleDeleteSession)))
 	mux.Handle("GET /api/servers", sessionMw(http.HandlerFunc(h.HandleListServers)))
+	mux.Handle("GET /api/notifications", sessionMw(http.HandlerFunc(h.HandleNotifications)))
 
 	// Admin-only routes.
 	adminMw := func(next http.Handler) http.Handler {
@@ -93,7 +97,8 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 			WriteTimeout: 120 * time.Second, // Long timeout for SSE streaming.
 			IdleTimeout:  60 * time.Second,
 		},
-		log: log,
+		handlers: h,
+		log:      log,
 	}
 }
 
@@ -114,6 +119,12 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		return fmt.Errorf("server: %w", err)
 	}
 	return nil
+}
+
+// HandleAsyncCompletion delegates to the handlers' async completion callback.
+// Used by the background poller to trigger auto-continuation when an async op finishes.
+func (s *Server) HandleAsyncCompletion(op database.AsyncOp, terminalStatus string) {
+	s.handlers.HandleAsyncCompletion(op, terminalStatus)
 }
 
 // responseWriter wraps http.ResponseWriter to capture the status code.

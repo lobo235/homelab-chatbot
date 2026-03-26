@@ -81,6 +81,11 @@ homelab-chatbot/
     │   ├── server.go          # HTTP server, route registration, middleware
     │   ├── handlers.go        # User-facing route handlers
     │   └── errors.go          # writeError / writeJSON helpers
+    ├── notify/
+    │   ├── hub.go             # Per-user SSE notification hub
+    │   ├── hub_test.go
+    │   ├── poller.go          # Background poller for async op status
+    │   └── poller_test.go
     ├── admin/
     │   └── handlers.go        # Admin route handlers
     └── frontend/
@@ -136,6 +141,8 @@ internal/chat/chat.go             — Anthropic API client with MCP tool support
 internal/api/server.go            — HTTP server, route registration
 internal/api/handlers.go          — User-facing handlers (chat, sessions, servers)
 internal/api/errors.go            — JSON error/response helpers
+internal/notify/hub.go            — Per-user SSE notification hub for async ops
+internal/notify/poller.go         — Background poller checking async op status via MCP
 internal/admin/handlers.go        — Admin-only handlers (users, servers, usage)
 internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 ```
@@ -152,6 +159,7 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 | GET | `/api/sessions/{id}` | Session | Get session with messages |
 | DELETE | `/api/sessions/{id}` | Session | Delete session |
 | GET | `/api/servers` | Session | List user's servers |
+| GET | `/api/notifications` | Session | Persistent SSE stream for async op notifications |
 | POST | `/api/auth/login` | None | Login, set session cookie |
 | POST | `/api/auth/logout` | Session | Logout, clear cookie |
 | GET | `/api/auth/me` | Session | Get current user info |
@@ -187,6 +195,20 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 ```
 
 `rate_limit` is sent during short waits (≤30s) while the server retries. `rate_limit_pause` is sent for long waits — the server closes the stream and the frontend auto-retries by sending a continuation request (empty message with `conversation_id`) after the countdown.
+
+### Notification SSE Event Types (`GET /api/notifications`)
+
+Persistent SSE connection for async operation status updates. Events:
+
+```json
+{"type":"async_started","op_id":"...","op_type":"download","server_name":"mc-test","description":"..."}
+{"type":"async_progress","op_id":"...","elapsed_seconds":45,"status":"pending"}
+{"type":"async_complete","op_id":"...","status":"done","message":"...","conversation_id":123}
+{"type":"async_failed","op_id":"...","status":"failed","message":"...","conversation_id":123}
+{"type":"auto_continue","op_id":"...","conversation_id":123,"message":"[System] ..."}
+```
+
+A background poller checks pending async operations (downloads, backups) every 10 seconds. When an operation completes, the hub sends `async_complete`/`async_failed` to the user's notification stream and triggers auto-continuation (sends `auto_continue` so the frontend auto-sends a continuation to Claude). Max 3 auto-continuations per conversation per hour to prevent token runaway.
 
 ## Testing Approach
 

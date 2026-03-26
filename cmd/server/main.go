@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/lobo235/homelab-chatbot/internal/config"
 	"github.com/lobo235/homelab-chatbot/internal/database"
 	"github.com/lobo235/homelab-chatbot/internal/mcp"
+	"github.com/lobo235/homelab-chatbot/internal/notify"
 )
 
 // version is set at build time via -ldflags "-X main.version=<value>".
@@ -78,10 +80,19 @@ func main() {
 	}
 
 	// Create chat service.
-	chatSvc := chat.NewService(cfg.AnthropicAPIKey, cfg.ClaudeModel, cfg.ClaudeHaikuModel, mcpProc, log)
+	chatSvc := chat.NewService(cfg.AnthropicAPIKey, cfg.ClaudeModel, cfg.ClaudeHaikuModel, cfg.MCPublicDomain, mcpProc, log)
 
-	// Create and start HTTP server.
-	srv := api.NewServer(db, authSvc, chatSvc, mcpClient, cfg.Gateways, version, cfg.ContextWindowSize, log)
+	// Create notification hub and background poller for async operations.
+	notifyHub := notify.NewHub(log)
+	srv := api.NewServer(db, authSvc, chatSvc, mcpClient, notifyHub, cfg.Gateways, version, cfg.ContextWindowSize, log)
+
+	var mcpCaller notify.MCPCaller
+	if mcpClient != nil {
+		mcpCaller = mcpClient
+	}
+	poller := notify.NewPoller(db, mcpCaller, notifyHub, log, 10*time.Second)
+	poller.OnComplete = srv.HandleAsyncCompletion
+	go poller.Run(ctx)
 
 	addr := ":" + cfg.Port
 	if err := srv.Run(ctx, addr); err != nil {

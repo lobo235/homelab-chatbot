@@ -186,6 +186,8 @@ func (d *DB) migrate() error {
 			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_async_ops_conversation ON async_operations(conversation_id, status)`,
+		`CREATE INDEX IF NOT EXISTS idx_async_ops_status ON async_operations(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_async_ops_user_status ON async_operations(user_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)`,
@@ -665,6 +667,60 @@ func (d *DB) UpdateAsyncOpStatus(opID string, status string) error {
 func (d *DB) CleanOldOps() error {
 	_, err := d.db.Exec(`DELETE FROM async_operations WHERE created_at < datetime('now', '-24 hours')`)
 	return err
+}
+
+// ListAllPendingOps returns all pending async operations across all users. Used by the background poller.
+func (d *DB) ListAllPendingOps() ([]AsyncOp, error) {
+	rows, err := d.db.Query(
+		`SELECT id, conversation_id, user_id, tool_name, operation_id, server_name, description, status, created_at
+		 FROM async_operations WHERE status = 'pending' ORDER BY id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all pending ops: %w", err)
+	}
+	defer rows.Close()
+
+	var ops []AsyncOp
+	for rows.Next() {
+		var op AsyncOp
+		if err := rows.Scan(&op.ID, &op.ConversationID, &op.UserID, &op.ToolName, &op.OperationID, &op.ServerName, &op.Description, &op.Status, &op.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan async op: %w", err)
+		}
+		ops = append(ops, op)
+	}
+	return ops, rows.Err()
+}
+
+// ListPendingOpsByUser returns all pending async operations for a specific user. Used by the notification endpoint.
+func (d *DB) ListPendingOpsByUser(userID int64) ([]AsyncOp, error) {
+	rows, err := d.db.Query(
+		`SELECT id, conversation_id, user_id, tool_name, operation_id, server_name, description, status, created_at
+		 FROM async_operations WHERE user_id = ? AND status = 'pending' ORDER BY id`, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list pending ops by user: %w", err)
+	}
+	defer rows.Close()
+
+	var ops []AsyncOp
+	for rows.Next() {
+		var op AsyncOp
+		if err := rows.Scan(&op.ID, &op.ConversationID, &op.UserID, &op.ToolName, &op.OperationID, &op.ServerName, &op.Description, &op.Status, &op.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan async op: %w", err)
+		}
+		ops = append(ops, op)
+	}
+	return ops, rows.Err()
+}
+
+// CountRecentAutoContinuations counts auto-continuation messages in a conversation since the given time.
+func (d *DB) CountRecentAutoContinuations(convID int64, since time.Time) (int, error) {
+	var count int
+	err := d.db.QueryRow(
+		`SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND role = 'user' AND content LIKE '[System]%' AND created_at >= ?`,
+		convID, since,
+	).Scan(&count)
+	return count, err
 }
 
 // ensureFilePermissions creates the file if it doesn't exist and sets

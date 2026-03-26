@@ -41,12 +41,14 @@ Minecraft expertise:
 - Individual mods (.jar files) go in the mods/ subdirectory.
 - Config files live in config/ or the server root (server.properties, etc.).
 - Modpack deployment knowledge: CurseForge search results automatically include deployment knowledge for known modpacks (modloader type, Java version, server pack details, resource sizing). Trust this knowledge — it was learned from previous successful deployments. If deployment knowledge is missing for a modpack you're working with, figure it out and save it using save_modpack_knowledge.
+- Recommended Minecraft versions for modded servers: When a kid wants to create a vanilla server and add individual mods (not a modpack), steer them toward Minecraft 1.20.1 or 1.21.1. These versions have the best mod availability, modloader support, and community compatibility. If they ask for the latest MC version, explain that slightly older versions have way more mods to choose from and recommend 1.21.1 (or 1.20.1 if they want maximum mod selection).
 - Adding mods: Use add_mod_to_server to install mods with automatic dependency resolution. The tool auto-detects the server's modloader and picks compatible files. If the mods folder is empty, it prefers NeoForge over Fabric.
 - Switching modloaders: Use set_server_modloader to change a server's modloader. IMPORTANT: Before switching, check the mods/ folder with list_server_files. For each installed mod, search CurseForge to verify it has a version for the new modloader. If most mods are compatible but 1-2 aren't, recommend the user remove those specific incompatible mods first, then switch. If many mods are incompatible, warn the user and suggest they reconsider. After switching, the old mod jars will NOT work — they must be re-downloaded for the new modloader using add_mod_to_server.
 - Version compatibility: Mods and modloaders are tied to specific Minecraft versions. When adding a mod or switching modloaders, check that the mod's gameVersions field matches the server's Minecraft version (VERSION env var in the HCL). If the mod only supports a different MC version (e.g., server is 1.21.1 but mod only has 1.20.1 builds), TELL THE USER and explain why: "This mod only supports MC 1.20.1 — your server is on 1.21.1. To use this mod, we'd need to downgrade your server to 1.20.1. This would also require re-checking all your other mods for 1.20.1 compatibility." ALWAYS ask for approval before changing the Minecraft version — never change it silently. Changing MC versions can break worlds and existing mods.
-- Downloads are ASYNC: download_to_server returns immediately with a download ID. Use get_download_status to check progress. Tell the user the download is in progress — small mods take seconds, large modpack server packs (1GB+) can take 1-3 minutes. Ask the user to tell you when to check on it.
-- Async operations: When you start async downloads or backups, the system tracks the operation IDs. If you lose track of a download ID, check the pending operations listed at the start of the conversation — they persist across context trimming.
+- Downloads are ASYNC: download_to_server returns immediately with a download ID. The system monitors the operation in the background and will notify you automatically when it completes — you do NOT need to poll get_download_status yourself. Tell the user "I've kicked off the download and I'll be notified when it's done!" Small mods take seconds, large modpack server packs (1GB+) can take 1-3 minutes. You can continue chatting about other topics while waiting.
+- Async operations: When you start async downloads or backups, the system tracks and monitors the operation IDs. When an operation completes, you'll receive a system message with the result. If you need to manually check status (e.g., the user asks), use get_download_status or get_backup_status.
 - When downloading a server pack, use list_archive_contents first to inspect the zip structure, then download_to_server with extract=true to deploy it.
+- No server pack? That's OK! Many modpacks don't have a separate server download. Use the main/client pack file instead — it usually contains everything the server needs (mods, configs, etc.). Extract it to the server directory and it will work. Only refuse deployment if the modpack is explicitly marked as client-only (e.g., shader packs, resource packs, HUD mods). Do NOT block a kid from creating a server just because there's no dedicated server pack file.
 - You can read and write server config files using read_server_file and write_server_file — use these to diagnose and fix configuration issues.
 - Common config files: server.properties, ops.json, whitelist.json, config/*.toml, config/*.json
 - Connection instructions: When a kid asks how to connect or wants instructions for friends, generate clear step-by-step instructions including: (1) Which Minecraft version to use (check the server's env vars or modpack KB), (2) Which launcher to use (vanilla launcher for vanilla/Forge, CurseForge app or Prism Launcher for modpacks, Fabric installer for Fabric mods), (3) If the server uses mods, list which mods they need to install client-side (not all server mods need client install — some are server-only), (4) The server address to add in multiplayer (use the server's DNS hostname). Keep instructions kid-friendly with clear numbered steps. For modpack servers, the easiest path is usually: install CurseForge app → search for the modpack → install it → add server address.
@@ -92,21 +94,23 @@ For operator mode users: Be verbose with operational details (job names, tool re
 
 // Service manages Claude API interactions.
 type Service struct {
-	apiKey     string
-	model      string
-	haikuModel string
-	mcpProcess *mcp.Process
-	log        *slog.Logger
+	apiKey         string
+	model          string
+	haikuModel     string
+	mcPublicDomain string
+	mcpProcess     *mcp.Process
+	log            *slog.Logger
 }
 
 // NewService creates a new chat service.
-func NewService(apiKey, model, haikuModel string, mcpProcess *mcp.Process, log *slog.Logger) *Service {
+func NewService(apiKey, model, haikuModel, mcPublicDomain string, mcpProcess *mcp.Process, log *slog.Logger) *Service {
 	return &Service{
-		apiKey:     apiKey,
-		model:      model,
-		haikuModel: haikuModel,
-		mcpProcess: mcpProcess,
-		log:        log,
+		apiKey:         apiKey,
+		model:          model,
+		haikuModel:     haikuModel,
+		mcPublicDomain: mcPublicDomain,
+		mcpProcess:     mcpProcess,
+		log:            log,
 	}
 }
 
@@ -422,6 +426,12 @@ func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []Anthropi
 			"\nFor non-admin users, reject any request to interact with servers not in this list."
 	} else {
 		prompt += "\n\nThis user does not own any Minecraft servers yet. They can request new servers to be created."
+	}
+
+	if s.mcPublicDomain != "" {
+		prompt += "\n\nMinecraft server connection domain: " + s.mcPublicDomain +
+			"\nPlayers connect using: <server-name>." + s.mcPublicDomain +
+			"\nFor example, a server named 'survival' would be: survival." + s.mcPublicDomain
 	}
 
 	if extraContext != "" {

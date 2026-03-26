@@ -15,6 +15,7 @@ import (
 	"github.com/lobo235/homelab-chatbot/internal/auth"
 	"github.com/lobo235/homelab-chatbot/internal/chat"
 	"github.com/lobo235/homelab-chatbot/internal/database"
+	"github.com/lobo235/homelab-chatbot/internal/notify"
 )
 
 // Handlers holds dependencies for user-facing HTTP handlers.
@@ -23,6 +24,7 @@ type Handlers struct {
 	Auth              *auth.Service
 	Chat              *chat.Service
 	MCPChat           *chat.MCPClient
+	NotifyHub         *notify.Hub
 	Log               *slog.Logger
 	Version           string
 	ContextWindowSize int
@@ -828,4 +830,131 @@ func isToolResultMessage(msg chat.AnthropicMessage) bool {
 		}
 	}
 	return false
+}
+
+// maxAutoContinuationsPerHour limits automatic continuations per conversation to prevent token runaway.
+const maxAutoContinuationsPerHour = 3
+
+// HandleNotifications serves persistent SSE notifications for async operation updates.
+func (h *Handlers) HandleNotifications(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Not authenticated")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "sse_unsupported", "Streaming not supported")
+		return
+	}
+
+	// Disable write deadline for this long-lived connection.
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		h.Log.Warn("failed to disable write deadline for notifications", "error", err)
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	client := h.NotifyHub.Register(user.ID)
+	defer h.NotifyHub.Unregister(client)
+
+	h.Log.Debug("notification stream opened", "user_id", user.ID)
+
+	// Send initial state: all pending ops for this user.
+	if pendingOps, err := h.DB.ListPendingOpsByUser(user.ID); err == nil {
+		for _, op := range pendingOps {
+			event := notify.Event{
+				Type:        "async_started",
+				OpID:        op.OperationID,
+				OpType:      opTypeFromTool(op.ToolName),
+				ServerName:  op.ServerName,
+				Description: op.Description,
+				Status:      "pending",
+				ConvID:      op.ConversationID,
+			}
+			data, _ := json.Marshal(event)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+		}
+		flusher.Flush()
+	}
+
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case event, ok := <-client.Events:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+
+		case <-keepalive.C:
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
+			flusher.Flush()
+
+		case <-r.Context().Done():
+			h.Log.Debug("notification stream closed", "user_id", user.ID)
+			return
+		}
+	}
+}
+
+// HandleAsyncCompletion is the callback invoked by the poller when an async operation finishes.
+// It stores a system message in the conversation and tells the frontend to auto-continue.
+func (h *Handlers) HandleAsyncCompletion(op database.AsyncOp, terminalStatus string) {
+	if !h.NotifyHub.HasClients(op.UserID) {
+		return // user offline, they'll see it on next message via pending ops context
+	}
+
+	// Rate-limit auto-continuations to prevent token runaway.
+	count, err := h.DB.CountRecentAutoContinuations(op.ConversationID, time.Now().Add(-1*time.Hour))
+	if err != nil {
+		h.Log.Warn("failed to count auto-continuations", "error", err)
+	}
+	if count >= maxAutoContinuationsPerHour {
+		h.Log.Info("skipping auto-continuation, limit reached",
+			"conversation_id", op.ConversationID,
+			"count", count,
+		)
+		return
+	}
+
+	statusText := "completed successfully"
+	if terminalStatus == "failed" {
+		statusText = "failed"
+	}
+	msg := fmt.Sprintf("[System] %s on server %s %s", op.Description, op.ServerName, statusText)
+
+	if _, err := h.DB.AddMessage(op.ConversationID, "user", msg); err != nil {
+		h.Log.Error("failed to add auto-continuation message", "error", err)
+		return
+	}
+
+	h.NotifyHub.Send(op.UserID, notify.Event{
+		Type:    "auto_continue",
+		OpID:    op.OperationID,
+		ConvID:  op.ConversationID,
+		Message: msg,
+	})
+}
+
+func opTypeFromTool(toolName string) string {
+	switch toolName {
+	case "download_to_server":
+		return "download"
+	case "create_backup":
+		return "backup"
+	default:
+		return toolName
+	}
 }

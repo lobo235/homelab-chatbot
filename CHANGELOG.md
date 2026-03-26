@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Async operation notification system: background poller checks download/backup status every 10s, sends real-time SSE events to the frontend when operations complete
+- Persistent SSE endpoint (`GET /api/notifications`) for per-user async operation notifications with 30s keepalive
+- Auto-continuation: when an async op completes, the system automatically sends a continuation to Claude so it can proceed with the workflow (max 3 per hour per conversation)
+- Active Operations sidebar panel showing running/completed/failed async ops with elapsed time
+- MC_PUBLIC_DOMAIN injection into system prompt so Claude always tells kids the correct server connection address
+- System prompt guidance: recommend MC 1.20.1 or 1.21.1 for modded vanilla servers (best mod ecosystem)
+- System prompt guidance: allow modpack deployment without a dedicated server pack file (use client pack instead)
+- System prompt update: Claude is told it will be notified automatically when async ops complete (no more manual polling)
+- Database indexes on `async_operations(status)` and `(user_id, status)` for efficient polling
+- Database methods: `ListAllPendingOps`, `ListPendingOpsByUser`, `CountRecentAutoContinuations`
 - Multi-tenancy Phase 1: operator mode checkbox hidden for non-admin users
 - Multi-tenancy Phase 1: Max Servers column in admin users table is now editable (inline number input)
 - Multi-tenancy Phase 1: database migration seeds existing Minecraft servers as owned by admin bootstrap account (user ID 1)

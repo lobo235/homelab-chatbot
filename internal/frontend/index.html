@@ -51,6 +51,14 @@ a:hover{text-decoration:underline}
 .status-unknown{background:var(--text-dim)}
 .server-addr{font-size:.75rem;color:var(--text-dim);cursor:pointer}
 .server-addr:hover{color:var(--accent)}
+/* Async operations panel */
+.async-ops-panel{border-top:1px solid var(--border);padding:12px;max-height:200px;overflow-y:auto}
+.async-ops-panel h3{font-size:.8rem;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.async-op-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.85rem}
+.async-op-icon{font-size:1rem;flex-shrink:0;line-height:1}
+.async-op-spinner{animation:spin 1.5s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.async-op-detail{font-size:.75rem;color:var(--text-dim)}
 /* Chat area */
 .chat-area{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
 .message{margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto}
@@ -237,6 +245,21 @@ a:hover{text-decoration:underline}
           <div>
             <div x-text="srv.name" style="font-weight:600"></div>
             <div class="server-addr" @click="copyText(srv.address)" x-text="srv.address" title="Click to copy"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <!-- Async operations panel -->
+    <div class="async-ops-panel" x-show="asyncOps.length > 0">
+      <h3>Active Operations</h3>
+      <template x-for="op in asyncOps" :key="op.op_id">
+        <div class="async-op-item">
+          <span class="async-op-icon" x-show="op.status === 'pending'" style="color:var(--warning)"><span class="async-op-spinner">&#9881;</span></span>
+          <span class="async-op-icon" x-show="op.status === 'done'" style="color:var(--accent2)">&#10003;</span>
+          <span class="async-op-icon" x-show="op.status === 'failed'" style="color:var(--danger)">&#10007;</span>
+          <div style="min-width:0">
+            <div x-text="op.description" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+            <div class="async-op-detail" x-text="op.status === 'pending' ? formatElapsed(op.elapsed_seconds) + ' elapsed' : (op.message || op.status)"></div>
           </div>
         </div>
       </template>
@@ -680,6 +703,8 @@ function chatApp() {
     rateLimitTimer: null,
     pendingRetryConvId: null,
     verbosityMode: 'kid',
+    asyncOps: [],
+    notifySource: null,
     debugMode: false,
     debugLog: [],
     adminUsers: [],
@@ -715,6 +740,9 @@ function chatApp() {
           this.verbosityMode = Alpine.store('auth').user?.verbosity_mode || 'kid';
           this.loadSessions();
           this.loadServers();
+          this.connectNotifications();
+        } else {
+          this.disconnectNotifications();
         }
       });
       this.$watch('showAdmin', (v) => {
@@ -1074,6 +1102,147 @@ function chatApp() {
 
     copyText(text) {
       navigator.clipboard.writeText(text);
+    },
+
+    // --- Async operation notifications ---
+
+    connectNotifications() {
+      this.disconnectNotifications();
+      this.notifySource = new EventSource('/api/notifications');
+      this.notifySource.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          this.handleNotification(event);
+        } catch {}
+      };
+      this.notifySource.onerror = () => {
+        // EventSource auto-reconnects, but handle permanent close.
+        setTimeout(() => {
+          if (Alpine.store('auth').loggedIn && this.notifySource && this.notifySource.readyState === 2) {
+            this.connectNotifications();
+          }
+        }, 5000);
+      };
+    },
+
+    disconnectNotifications() {
+      if (this.notifySource) {
+        this.notifySource.close();
+        this.notifySource = null;
+      }
+      this.asyncOps = [];
+    },
+
+    handleNotification(event) {
+      switch (event.type) {
+        case 'async_started': {
+          if (!this.asyncOps.find(o => o.op_id === event.op_id)) {
+            this.asyncOps.push({...event, elapsed_seconds: event.elapsed_seconds || 0});
+          }
+          break;
+        }
+        case 'async_progress': {
+          const op = this.asyncOps.find(o => o.op_id === event.op_id);
+          if (op) {
+            op.elapsed_seconds = event.elapsed_seconds;
+          } else {
+            // Might have missed the started event; add it.
+            this.asyncOps.push({...event});
+          }
+          break;
+        }
+        case 'async_complete':
+        case 'async_failed': {
+          const idx = this.asyncOps.findIndex(o => o.op_id === event.op_id);
+          if (idx >= 0) {
+            this.asyncOps[idx].status = event.status;
+            this.asyncOps[idx].message = event.message;
+          }
+          // Remove from panel after 30 seconds.
+          const opId = event.op_id;
+          setTimeout(() => {
+            this.asyncOps = this.asyncOps.filter(o => o.op_id !== opId);
+          }, 30000);
+          // Refresh servers in case a new one came online.
+          this.loadServers();
+          break;
+        }
+        case 'auto_continue': {
+          // Auto-send a continuation if user is in the right conversation and not streaming.
+          if (event.conversation_id === this.currentSession && !this.streaming) {
+            this.messages.push({role: 'user', content: event.message});
+            this.autoContinue(event.conversation_id);
+          }
+          break;
+        }
+      }
+    },
+
+    async autoContinue(convId) {
+      this.streaming = true;
+      this.streamBuffer = '';
+      this.afterToolDone = false;
+      this.toolCalls = [];
+      this.abortController = new AbortController();
+
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            message: '',
+            conversation_id: convId,
+            verbosity_mode: this.verbosityMode,
+            debug: this.debugMode,
+          }),
+          signal: this.abortController.signal,
+        });
+
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({message: 'Unknown error'}));
+          this.messages.push({role: 'assistant', content: `Error: ${err.message || 'Failed to continue'}`});
+          this.streaming = false;
+          return;
+        }
+
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              this.handleSSE(ev);
+            } catch {}
+          }
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          this.messages.push({role: 'assistant', content: 'Error: Connection lost during auto-continuation.'});
+        }
+      }
+
+      if (this.streamBuffer) {
+        this.messages.push({role: 'assistant', content: this.streamBuffer});
+      }
+      this.streaming = false;
+      this.streamBuffer = '';
+      this.afterToolDone = false;
+      this.toolCalls = [];
+      this.loadSessions();
+      this.loadServers();
+    },
+
+    formatElapsed(seconds) {
+      if (!seconds || seconds < 0) return '0s';
+      if (seconds < 60) return seconds + 's';
+      return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
     },
 
     debugEvent(type, data) {
