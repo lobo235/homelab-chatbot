@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.12.2] - 2026-03-26
+
+### Changed
+- Switch UI color scheme from GitHub Dark to Gruvbox Dark across index.html and help.html (CSS variables, hardcoded colors, inline SVG icons, favicon)
+
 ## [v1.12.1] - 2026-03-26
 
 ### Added

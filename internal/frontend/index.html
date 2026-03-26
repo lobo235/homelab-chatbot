@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Homelab AI — Minecraft Server Manager</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='4' y='4' width='56' height='56' rx='12' fill='%230d1117'/><rect x='4' y='4' width='56' height='56' rx='12' fill='none' stroke='%2358a6ff' stroke-width='2'/><path d='M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4' stroke='%233fb950' stroke-width='3' stroke-linecap='round'/><rect x='38' y='16' width='8' height='8' rx='1' fill='%233fb950' transform='rotate(45 42 20)'/><path d='M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2' fill='%2358a6ff' opacity='0.9'/><circle cx='38' cy='42' r='1' fill='white'/><circle cx='42' cy='42' r='1' fill='white'/><circle cx='46' cy='42' r='1' fill='white'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='4' y='4' width='56' height='56' rx='12' fill='%231d2021'/><rect x='4' y='4' width='56' height='56' rx='12' fill='none' stroke='%23d79921' stroke-width='2'/><path d='M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4' stroke='%23b8bb26' stroke-width='3' stroke-linecap='round'/><rect x='38' y='16' width='8' height='8' rx='1' fill='%23b8bb26' transform='rotate(45 42 20)'/><path d='M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2' fill='%23d79921' opacity='0.9'/><circle cx='38' cy='42' r='1' fill='white'/><circle cx='42' cy='42' r='1' fill='white'/><circle cx='46' cy='42' r='1' fill='white'/></svg>">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js" integrity="sha384-H+hy9ULve6xfxRkWIh/YOtvDdpXgV2fmAGQkIDTxIgZwNoaoBal14Di2YTMR6MzR" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.5/dist/purify.min.js" integrity="sha384-qSFej5dZNviyoPgYJ5+Xk4bEbX8AYddxAHPuzs1aSgRiXxJ3qmyWNaPsRkpv/+x5" crossorigin="anonymous"></script>
 <style>
 [x-cloak]{display:none!important}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;--text:#c9d1d9;--text-dim:#7d8590;--accent:#58a6ff;--accent2:#3fb950;--danger:#f85149;--warning:#d29922;--radius:8px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;--mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace}
+:root{--bg:#1d2021;--surface:#282828;--surface2:#3c3836;--border:#504945;--text:#ebdbb2;--text-dim:#a89984;--accent:#d79921;--accent2:#b8bb26;--danger:#fb4934;--warning:#fe8019;--radius:8px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;--mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace}
 html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -71,22 +71,22 @@ a:hover{text-decoration:underline}
 .chat-area{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
 .message{margin-bottom:16px;max-width:800px;margin-left:auto;margin-right:auto}
 .message-user{text-align:right}
-.message-user .bubble{background:#1f6feb;color:#fff;display:inline-block;padding:10px 16px;border-radius:var(--radius) var(--radius) 2px var(--radius);max-width:80%;text-align:left;font-size:.95rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.message-user .bubble{background:#d79921;color:#1d2021;display:inline-block;padding:10px 16px;border-radius:var(--radius) var(--radius) 2px var(--radius);max-width:80%;text-align:left;font-size:.95rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .message-assistant .bubble{background:var(--surface);padding:16px 20px;border-radius:var(--radius);border:1px solid var(--border);line-height:1.6;font-size:.95rem}
 .message-assistant .bubble p{margin-bottom:8px}
 .message-assistant .bubble p:last-child{margin-bottom:0}
-.message-assistant .bubble pre{background:#010409;padding:16px;border-radius:6px;overflow-x:auto;margin:12px 0;font-family:var(--mono);font-size:.85rem;line-height:1.5;border:1px solid var(--border)}
+.message-assistant .bubble pre{background:#1d2021;padding:16px;border-radius:6px;overflow-x:auto;margin:12px 0;font-family:var(--mono);font-size:.85rem;line-height:1.5;border:1px solid var(--border)}
 .message-assistant .bubble code{font-family:var(--mono);font-size:.85em;background:rgba(110,118,129,.25);padding:2px 6px;border-radius:4px}
 .message-assistant .bubble pre code{background:none;padding:0;font-size:1em}
 /* Markdown content styles */
-.message-assistant .bubble h1,.message-assistant .bubble h2,.message-assistant .bubble h3,.message-assistant .bubble h4{color:#f0f6fc;margin:16px 0 8px;line-height:1.3}
+.message-assistant .bubble h1,.message-assistant .bubble h2,.message-assistant .bubble h3,.message-assistant .bubble h4{color:#fbf1c7;margin:16px 0 8px;line-height:1.3}
 .message-assistant .bubble h1{font-size:1.3em;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .message-assistant .bubble h2{font-size:1.15em;padding-bottom:4px;border-bottom:1px solid var(--border)}
 .message-assistant .bubble h3{font-size:1.05em}
 .message-assistant .bubble h4{font-size:.95em;color:var(--text)}
 .message-assistant .bubble table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem}
 .message-assistant .bubble thead{background:var(--surface2)}
-.message-assistant .bubble th{padding:8px 12px;text-align:left;font-weight:600;color:#f0f6fc;border:1px solid var(--border);white-space:nowrap}
+.message-assistant .bubble th{padding:8px 12px;text-align:left;font-weight:600;color:#fbf1c7;border:1px solid var(--border);white-space:nowrap}
 .message-assistant .bubble td{padding:6px 12px;border:1px solid var(--border);color:var(--text)}
 .message-assistant .bubble tbody tr:nth-child(even){background:rgba(110,118,129,.06)}
 .message-assistant .bubble tbody tr:hover{background:rgba(110,118,129,.12)}
@@ -95,13 +95,13 @@ a:hover{text-decoration:underline}
 .message-assistant .bubble li>ul,.message-assistant .bubble li>ol{margin:2px 0}
 .message-assistant .bubble blockquote{border-left:3px solid var(--accent);padding:4px 16px;margin:12px 0;color:var(--text-dim);background:rgba(88,166,255,.05);border-radius:0 4px 4px 0}
 .message-assistant .bubble hr{border:none;border-top:1px solid var(--border);margin:16px 0}
-.message-assistant .bubble strong{color:#f0f6fc}
+.message-assistant .bubble strong{color:#fbf1c7}
 .message-assistant .bubble a{color:var(--accent);text-decoration:none}
 .message-assistant .bubble a:hover{text-decoration:underline}
 .message-assistant .bubble img{max-width:100%;border-radius:4px}
 /* Connect address highlight */
-.connect-addr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 16px;border-radius:var(--radius);margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.connect-addr span{font-size:1.1rem;font-weight:700;color:#a5d6a7;font-family:var(--mono)}
+.connect-addr{background:linear-gradient(135deg,#79740e,#98971a);padding:12px 16px;border-radius:var(--radius);margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.connect-addr span{font-size:1.1rem;font-weight:700;color:#ebdbb2;font-family:var(--mono)}
 .copy-btn{background:var(--accent2);color:#000;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.8rem;white-space:nowrap}
 .copy-btn:hover{opacity:.85}
 /* Tool call activity bar */
@@ -137,8 +137,8 @@ a:hover{text-decoration:underline}
 .debug-type.rate_limit{color:var(--warning)}
 .debug-type.debug{color:#8b949e}
 .debug-type.done{color:var(--accent2)}
-.debug-type.user_msg{color:#58a6ff;font-style:italic}
-.debug-type.assistant_msg{color:#3fb950;font-style:italic}
+.debug-type.user_msg{color:#d79921;font-style:italic}
+.debug-type.assistant_msg{color:#b8bb26;font-style:italic}
 .debug-type.request{color:#8b949e}
 .debug-data{color:var(--text)}
 /* Welcome panel */
@@ -201,7 +201,7 @@ a:hover{text-decoration:underline}
   <div class="login-page">
     <div class="login-card">
       <div style="display:flex;align-items:center;justify-content:center;gap:10px">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36"><rect x="4" y="4" width="56" height="56" rx="12" fill="#0d1117"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#58a6ff" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#3fb950" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#58a6ff" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36"><rect x="4" y="4" width="56" height="56" rx="12" fill="#1d2021"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#d79921" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#b8bb26" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#b8bb26" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#d79921" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
         <h1>Homelab AI</h1>
       </div>
       <p style="text-align:center;color:var(--text-dim);margin-bottom:20px">Minecraft Server Manager</p>
@@ -298,7 +298,7 @@ a:hover{text-decoration:underline}
     <div class="header">
       <div style="display:flex;align-items:center;gap:8px">
         <button class="icon-btn" @click="sidebarOpen = !sidebarOpen" title="Toggle sidebar">&#9776;</button>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28"><rect x="4" y="4" width="56" height="56" rx="12" fill="#0d1117"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#58a6ff" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#3fb950" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#58a6ff" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28"><rect x="4" y="4" width="56" height="56" rx="12" fill="#1d2021"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#d79921" stroke-width="2"/><path d="M20 44l8-8m0 0l12-12m-12 12l-4-4m4 4l4-4" stroke="#b8bb26" stroke-width="3" stroke-linecap="round"/><rect x="38" y="16" width="8" height="8" rx="1" fill="#b8bb26" transform="rotate(45 42 20)"/><path d="M32 36c0 0 8 2 12 2s6 1 6 4-2 4-6 4-12-2-12-2" fill="#d79921" opacity="0.9"/><circle cx="38" cy="42" r="1" fill="white"/><circle cx="42" cy="42" r="1" fill="white"/><circle cx="46" cy="42" r="1" fill="white"/></svg>
         <h1>Homelab AI</h1>
       </div>
       <div class="header-actions">
