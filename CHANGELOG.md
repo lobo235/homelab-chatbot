@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.12.0] - 2026-03-26
+
+### Added
+- Admin KB edit form: JVM args, GC strategy, startup method/script, level type, first launch notes, source platform, known client-only mods (comma-separated input)
+- Admin KB edit form: per-version server pack notes and known issues fields
+- Admin KB edit form: read-only display section for discovery-populated data (additional ports, config overrides, problematic mods, external services)
+- Admin KB edit form: per-version mod count and discovery method display
+- Toast notification elapsed time updates every second (client-side timer between 10s backend polls)
+- CLAUDE.md UI-schema sync rule: schema changes must include corresponding frontend updates
+
 ## [v1.11.1] - 2026-03-26
 
 ### Fixed

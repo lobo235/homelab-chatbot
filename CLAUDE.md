@@ -240,6 +240,7 @@ Key patterns:
 - Never log secret values (API keys, passwords, session tokens)
 - Session tokens: 32-byte `crypto/rand`, hex-encoded, stored hashed (SHA-256)
 - bcrypt work factor: 12
+- **UI-schema sync:** When a data schema changes (e.g. `ModpackKnowledge`, `VersionKnowledge`, SSE event types, API response shapes), the admin panel and frontend must be updated in the same commit to reflect the new fields. This includes: form inputs for editable fields, read-only displays for machine-generated fields, JS defaults in `newModpack()`/`addVersion()` or equivalent initializers, and table columns in list views. Never add a backend field without checking whether it should be visible in the UI.
 
 ## Security Rules
 

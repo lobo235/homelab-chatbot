@@ -560,10 +560,59 @@ a:hover{text-decoration:underline}
                 <input type="checkbox" x-model="editingModpack.has_server_pack" id="has_server_pack">
                 <label for="has_server_pack" style="margin:0">Has Server Pack</label>
               </div>
+              <div class="form-group" style="margin:0">
+                <label>Source Platform</label>
+                <select x-model="editingModpack.source_platform" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);width:100%">
+                  <option value="">Unknown</option>
+                  <option value="curseforge">CurseForge</option>
+                  <option value="modrinth">Modrinth</option>
+                  <option value="ftb">FTB</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>JVM Args</label>
+                <input type="text" x-model="editingModpack.jvm_args" placeholder="e.g. -XX:+UseG1GC ...">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>GC Strategy</label>
+                <select x-model="editingModpack.gc_strategy" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);width:100%">
+                  <option value="">Default</option>
+                  <option value="g1gc">G1GC</option>
+                  <option value="zgc">ZGC</option>
+                  <option value="shenandoah">Shenandoah</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Startup Method</label>
+                <select x-model="editingModpack.startup_method" style="padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);width:100%">
+                  <option value="">Default</option>
+                  <option value="custom_script">Custom Script</option>
+                  <option value="serverjar_direct">Server JAR Direct</option>
+                  <option value="bootstrap_installer">Bootstrap Installer</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Startup Script Name</label>
+                <input type="text" x-model="editingModpack.startup_script_name" placeholder="e.g. start.sh">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Level Type</label>
+                <input type="text" x-model="editingModpack.level_type" placeholder="e.g. DEFAULT, BIOMESOPLENTY">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>First Launch Notes</label>
+                <input type="text" x-model="editingModpack.first_launch_notes" placeholder="e.g. First boot takes 5+ min">
+              </div>
             </div>
             <div class="form-group" style="margin:12px 0 0 0">
               <label>Deployment Notes</label>
               <textarea x-model="editingModpack.deployment_notes" rows="3" style="width:100%;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+            <div class="form-group" style="margin:8px 0 0 0">
+              <label>Known Client-Only Mods <span style="font-size:.75rem;color:var(--text-dim)">(comma-separated slugs)</span></label>
+              <input type="text" x-model="editingModpack._clientOnlyModsStr" placeholder="e.g. optifine, journeymap, jei"
+                @focus="editingModpack._clientOnlyModsStr = editingModpack._clientOnlyModsStr || (editingModpack.known_client_only_mods || []).join(', ')"
+                @blur="editingModpack.known_client_only_mods = editingModpack._clientOnlyModsStr ? editingModpack._clientOnlyModsStr.split(',').map(s => s.trim()).filter(Boolean) : []">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:8px">
               <div class="form-group" style="margin:0;display:flex;align-items:center;gap:8px;padding-top:8px">
@@ -615,14 +664,62 @@ a:hover{text-decoration:underline}
                       <input type="number" x-model.number="ver.server_pack_file_id" placeholder="CurseForge file ID" style="font-size:.85rem;padding:6px 8px">
                     </div>
                     <div class="form-group" style="margin:0;grid-column:span 2">
-                      <label style="font-size:.75rem">Notes</label>
+                      <label style="font-size:.75rem">Deployment Notes</label>
                       <input type="text" x-model="ver.deployment_notes" placeholder="Version-specific notes" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0;grid-column:span 2">
+                      <label style="font-size:.75rem">Server Pack Notes</label>
+                      <input type="text" x-model="ver.server_pack_notes" placeholder="e.g. No server pack for this version" style="font-size:.85rem;padding:6px 8px">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:.75rem">Known Issues <span style="color:var(--text-dim)">(comma-sep)</span></label>
+                      <input type="text" style="font-size:.85rem;padding:6px 8px"
+                        :value="(ver.known_issues || []).join(', ')"
+                        @blur="ver.known_issues = $event.target.value ? $event.target.value.split(',').map(s => s.trim()).filter(Boolean) : []"
+                        placeholder="e.g. Crashes on first launch, Needs manual config">
+                    </div>
+                    <div class="form-group" style="margin:0" x-show="ver.total_mod_count">
+                      <label style="font-size:.75rem">Mod Count</label>
+                      <div style="font-size:.8rem;color:var(--text-dim)" x-text="(ver.total_mod_count || 0) + ' total / ' + (ver.server_mod_count || 0) + ' server'"></div>
+                    </div>
+                    <div class="form-group" style="margin:0" x-show="ver.discovery_method">
+                      <label style="font-size:.75rem">Discovery Method</label>
+                      <div style="font-size:.8rem;color:var(--text-dim)" x-text="ver.discovery_method || '-'"></div>
                     </div>
                   </div>
                 </div>
               </template>
               <div x-show="!(editingModpack.versions || []).length" style="color:var(--text-dim);font-size:.85rem;padding:8px">No version entries yet</div>
             </div>
+
+            <!-- Read-only discovery data -->
+            <template x-if="editingModpack?.slug && ((editingModpack.additional_ports||[]).length || editingModpack.required_config_overrides || (editingModpack.known_problematic_mods||[]).length || (editingModpack.required_external_services||[]).length)">
+              <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+                <h5 style="margin:0 0 8px 0;color:var(--text-dim)">Discovery Data <span style="font-size:.75rem">(read-only)</span></h5>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:.8rem">
+                  <div x-show="(editingModpack.additional_ports||[]).length > 0">
+                    <label style="font-size:.75rem;font-weight:600">Additional Ports</label>
+                    <template x-for="p in (editingModpack.additional_ports||[])" :key="p.port">
+                      <div style="color:var(--text-dim)" x-text="p.port + '/' + p.protocol + ' — ' + p.purpose + (p.mod_slug ? ' (' + p.mod_slug + ')' : '')"></div>
+                    </template>
+                  </div>
+                  <div x-show="(editingModpack.known_problematic_mods||[]).length > 0">
+                    <label style="font-size:.75rem;font-weight:600">Problematic Mods</label>
+                    <template x-for="m in (editingModpack.known_problematic_mods||[])" :key="m.mod_slug">
+                      <div style="color:var(--text-dim)" x-text="m.mod_slug + ': ' + m.issue + ' → ' + m.action"></div>
+                    </template>
+                  </div>
+                  <div x-show="(editingModpack.required_external_services||[]).length > 0">
+                    <label style="font-size:.75rem;font-weight:600">Required External Services</label>
+                    <div style="color:var(--text-dim)" x-text="(editingModpack.required_external_services||[]).join(', ')"></div>
+                  </div>
+                  <div x-show="editingModpack.required_config_overrides">
+                    <label style="font-size:.75rem;font-weight:600">Config Overrides</label>
+                    <pre style="color:var(--text-dim);font-size:.75rem;margin:4px 0;white-space:pre-wrap;max-height:120px;overflow-y:auto" x-text="JSON.stringify(editingModpack.required_config_overrides, null, 2)"></pre>
+                  </div>
+                </div>
+              </div>
+            </template>
 
             <div style="display:flex;gap:8px;margin-top:16px">
               <button class="btn btn-accent" @click="saveModpack()">Save</button>
@@ -735,6 +832,7 @@ function chatApp() {
     verbosityMode: 'kid',
     asyncOps: [],
     notifySource: null,
+    elapsedTimer: null,
     debugMode: false,
     debugLog: [],
     adminUsers: [],
@@ -1145,6 +1243,9 @@ function chatApp() {
     connectNotifications() {
       this.disconnectNotifications();
       this.notifySource = new EventSource('/api/notifications');
+      this.elapsedTimer = setInterval(() => {
+        this.asyncOps.forEach(op => { if (op.status === 'pending') op.elapsed_seconds++; });
+      }, 1000);
       this.notifySource.onmessage = (e) => {
         try {
           const event = JSON.parse(e.data);
@@ -1162,6 +1263,10 @@ function chatApp() {
     },
 
     disconnectNotifications() {
+      if (this.elapsedTimer) {
+        clearInterval(this.elapsedTimer);
+        this.elapsedTimer = null;
+      }
       if (this.notifySource) {
         this.notifySource.close();
         this.notifySource = null;
@@ -1385,17 +1490,21 @@ function chatApp() {
         if (!resp.ok) return;
         const mp = await resp.json();
         mp.versions = mp.versions || [];
+        mp._clientOnlyModsStr = (mp.known_client_only_mods || []).join(', ');
         this.editingModpack = mp;
       } catch {}
     },
 
     newModpack() {
       this.editingModpack = {
-        slug: '', name: '', curseforge_id: 0,
+        slug: '', name: '', curseforge_id: 0, source_platform: '',
         modloader_type: 'forge', modloader_strategy: 'bundled_in_server_pack',
         has_server_pack: true, server_pack_pattern: '',
         minecraft_version: '', recommended_cpu_mhz: 0, recommended_memory_mb: 0,
-        init_memory: '', max_memory: '', deployment_notes: '',
+        init_memory: '', max_memory: '',
+        jvm_args: '', gc_strategy: '',
+        startup_method: '', startup_script_name: '', level_type: '', first_launch_notes: '',
+        deployment_notes: '', known_client_only_mods: [],
         versions: [],
       };
     },
@@ -1440,7 +1549,8 @@ function chatApp() {
       this.editingModpack.versions.push({
         pack_version: '', minecraft_version: '', modloader_type: '',
         modloader_version: '', java_version: 0, itzg_docker_tag: '',
-        server_pack_file_id: 0, deployment_notes: '',
+        server_pack_file_id: 0, server_pack_notes: '',
+        deployment_notes: '', known_issues: [],
       });
     },
 
