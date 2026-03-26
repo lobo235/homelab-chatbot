@@ -366,10 +366,14 @@ func extractOperationID(toolResult string) string {
 		return ""
 	}
 	// download_to_server returns {"id": "..."} or {"download_id": "..."}
+	// trigger_modpack_discovery returns {"operation_id": "..."}
 	if id, ok := parsed["id"].(string); ok && id != "" {
 		return id
 	}
 	if id, ok := parsed["download_id"].(string); ok && id != "" {
+		return id
+	}
+	if id, ok := parsed["operation_id"].(string); ok && id != "" {
 		return id
 	}
 	return ""
@@ -518,6 +522,19 @@ func (h *Handlers) trackAsyncOps(toolName string, args map[string]interface{}, t
 			if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, "creating backup"); err != nil {
 				h.Log.Warn("failed to track async backup", "op_id", opID, "error", err)
 			}
+		}
+	case "trigger_modpack_discovery":
+		opID := extractOperationID(resultStr)
+		if opID == "" {
+			return
+		}
+		packName, _ := args["pack_name"].(string)
+		if packName == "" {
+			packName = opID // fall back to slug
+		}
+		desc := "Learning how to deploy " + packName
+		if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, "", desc); err != nil {
+			h.Log.Warn("failed to track async discovery", "op_id", opID, "error", err)
 		}
 	case "get_download_status":
 		downloadID, _ := args["download_id"].(string)

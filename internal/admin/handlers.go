@@ -480,6 +480,45 @@ func (h *Handlers) HandleDeleteModpackKB(w http.ResponseWriter, r *http.Request)
 	_, _ = w.Write([]byte(result))
 }
 
+// HandleToggleModpackReview processes PATCH /admin/modpack-kb/{slug}/review.
+func (h *Handlers) HandleToggleModpackReview(w http.ResponseWriter, r *http.Request) {
+	if h.MCPChat == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_mcp", "MCP client not available")
+		return
+	}
+
+	slug := r.PathValue("slug")
+	if slug == "" {
+		writeError(w, http.StatusBadRequest, "missing_slug", "Slug is required")
+		return
+	}
+
+	var body struct {
+		NeedsReview bool `json:"needs_review"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "Invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.MCPChat.CallTool(ctx, "save_modpack_knowledge", map[string]interface{}{
+		"slug":         slug,
+		"needs_review": body.NeedsReview,
+	})
+	if err != nil {
+		h.Log.Error("toggle modpack review failed", "error", err, "slug", slug)
+		writeError(w, http.StatusBadGateway, "mcp_error", "Failed to update modpack review status")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(result))
+}
+
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

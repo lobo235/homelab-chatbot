@@ -83,6 +83,7 @@ func NewServer(db *database.DB, authSvc *auth.Service, chatSvc *chat.Service, mc
 	mux.Handle("GET /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleGetModpackKB)))
 	mux.Handle("PUT /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleSaveModpackKB)))
 	mux.Handle("DELETE /admin/modpack-kb/{slug}", adminMw(http.HandlerFunc(ah.HandleDeleteModpackKB)))
+	mux.Handle("PATCH /admin/modpack-kb/{slug}/review", adminMw(http.HandlerFunc(ah.HandleToggleModpackReview)))
 
 	// Frontend (catch-all for SPA).
 	mux.HandleFunc("GET /", frontend.HandleIndex)

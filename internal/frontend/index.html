@@ -464,15 +464,22 @@ a:hover{text-decoration:underline}
           <div x-show="!editingModpack">
             <button class="btn btn-accent btn-sm" @click="newModpack()" style="margin-bottom:12px">Add Modpack</button>
             <table class="admin-table" x-show="adminModpackKB.length > 0">
-              <thead><tr><th>Name</th><th>Modloader</th><th>MC Version</th><th>Server Pack</th><th>Versions</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Source</th><th>Modloader</th><th>MC Version</th><th>Server Pack</th><th>Versions</th><th>Review</th><th>Actions</th></tr></thead>
               <tbody>
-                <template x-for="mp in adminModpackKB" :key="mp.slug">
+                <template x-for="mp in sortedModpackKB" :key="mp.slug">
                   <tr>
                     <td x-text="mp.name"></td>
+                    <td x-text="mp.source_platform || '-'" style="font-size:.8rem"></td>
                     <td x-text="mp.modloader_type"></td>
                     <td x-text="mp.minecraft_version || '-'"></td>
                     <td x-text="mp.has_server_pack ? 'Yes' : 'No'"></td>
                     <td x-text="(mp.versions || []).length"></td>
+                    <td>
+                      <span @click="toggleModpackReview(mp.slug, mp.needs_review)" style="cursor:pointer;font-size:.85rem" :style="mp.needs_review ? 'color:var(--warning,#f59e0b)' : 'color:var(--success,#22c55e)'" x-text="mp.needs_review ? 'Needs Review' : 'Reviewed'"></span>
+                      <template x-if="mp.confidence_flags && mp.confidence_flags.length > 0">
+                        <span style="display:block;font-size:.7rem;color:var(--text-dim)" x-text="mp.confidence_flags.join(', ')"></span>
+                      </template>
+                    </td>
                     <td style="white-space:nowrap">
                       <button class="btn btn-sm" @click="editModpack(mp.slug)">Edit</button>
                       <button class="btn btn-sm btn-danger" @click="deleteModpack(mp.slug)">Delete</button>
@@ -544,6 +551,16 @@ a:hover{text-decoration:underline}
             <div class="form-group" style="margin:12px 0 0 0">
               <label>Deployment Notes</label>
               <textarea x-model="editingModpack.deployment_notes" rows="3" style="width:100%;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;resize:vertical"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:8px">
+              <div class="form-group" style="margin:0;display:flex;align-items:center;gap:8px;padding-top:8px">
+                <input type="checkbox" x-model="editingModpack.needs_review" id="needs_review_edit">
+                <label for="needs_review_edit" style="margin:0">Needs Review</label>
+              </div>
+              <div class="form-group" style="margin:0" x-show="editingModpack.confidence_flags && editingModpack.confidence_flags.length > 0">
+                <label style="font-size:.85rem">Confidence Flags</label>
+                <div style="font-size:.8rem;color:var(--text-dim)" x-text="(editingModpack.confidence_flags || []).join(', ')"></div>
+              </div>
             </div>
 
             <!-- Versions sub-section -->
@@ -712,6 +729,12 @@ function chatApp() {
     adminUsage: [],
     adminModpackKB: [],
     editingModpack: null,
+    get sortedModpackKB() {
+      return [...this.adminModpackKB].sort((a, b) => {
+        if (a.needs_review !== b.needs_review) return a.needs_review ? -1 : 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    },
     newUser: {username: '', password: '', role: 'user'},
 
     get promptChips() {
@@ -1372,6 +1395,17 @@ function chatApp() {
           body: JSON.stringify(mp),
         });
         this.editingModpack = null;
+        this.loadModpackKB();
+      } catch {}
+    },
+
+    async toggleModpackReview(slug, currentNeedsReview) {
+      try {
+        await fetch(`/admin/modpack-kb/${slug}/review`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({needs_review: !currentNeedsReview}),
+        });
         this.loadModpackKB();
       } catch {}
     },

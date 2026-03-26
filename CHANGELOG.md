@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Increase max_tokens from 8192 to 16384 to use Sonnet's full output capacity (Haiku auto-caps at its own 8192 limit)
+
 ### Added
-- Async operation notification system: background poller checks download/backup status every 10s, sends real-time SSE events to the frontend when operations complete
+- Modpack discovery integration: `trigger_modpack_discovery` tracked as async operation with real-time status notifications
+- Admin KB table: review toggle endpoint (`PATCH /admin/modpack-kb/{slug}/review`), source platform column, confidence flags display, sort needs-review packs first
+- Admin KB edit form: needs_review checkbox and confidence flags display
+- Async operation notification system: background poller checks download/backup/discovery status every 10s, sends real-time SSE events to the frontend when operations complete
 - Persistent SSE endpoint (`GET /api/notifications`) for per-user async operation notifications with 30s keepalive
 - Auto-continuation: when an async op completes, the system automatically sends a continuation to Claude so it can proceed with the workflow (max 3 per hour per conversation)
 - Active Operations sidebar panel showing running/completed/failed async ops with elapsed time

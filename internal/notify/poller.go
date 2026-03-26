@@ -126,6 +126,10 @@ func (p *Poller) statusToolFor(op database.AsyncOp) (string, map[string]interfac
 			"server_name": op.ServerName,
 			"backup_id":   op.OperationID,
 		}
+	case "trigger_modpack_discovery":
+		return "get_discovery_state", map[string]interface{}{
+			"slug": op.OperationID,
+		}
 	default:
 		p.log.Warn("poller: unknown async tool", "tool", op.ToolName)
 		return "", nil
@@ -193,6 +197,8 @@ func opTypeFromTool(toolName string) string {
 		return "download"
 	case "create_backup":
 		return "backup"
+	case "trigger_modpack_discovery":
+		return "discovery"
 	default:
 		return toolName
 	}

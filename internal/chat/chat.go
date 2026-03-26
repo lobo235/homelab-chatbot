@@ -454,7 +454,7 @@ func (s *Service) buildRequestBody(messages []AnthropicMessage, tools []Anthropi
 
 	reqBody := map[string]interface{}{
 		"model":      model,
-		"max_tokens": 8192,
+		"max_tokens": 16384,
 		"system":     systemBlocks,
 		"messages":   messages,
 		"stream":     true,

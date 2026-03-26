@@ -180,6 +180,11 @@ internal/frontend/frontend.go     — Embedded HTML/CSS/JS assets
 | GET | `/admin/usage` | Admin | Token usage summary |
 | PUT | `/admin/users/{id}/limits` | Admin | Set per-user limits |
 | GET | `/admin/logs` | Admin | Recent error log |
+| GET | `/admin/modpack-kb` | Admin | List all modpack KB entries |
+| GET | `/admin/modpack-kb/{slug}` | Admin | Get modpack KB entry |
+| PUT | `/admin/modpack-kb/{slug}` | Admin | Save/update modpack KB entry |
+| DELETE | `/admin/modpack-kb/{slug}` | Admin | Delete modpack KB entry |
+| PATCH | `/admin/modpack-kb/{slug}/review` | Admin | Toggle needs_review flag |
 
 ### SSE Event Types
 
