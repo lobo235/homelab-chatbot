@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.12.1] - 2026-03-26
+
+### Added
+- Async tracking for `destroy_minecraft_server` — background poller checks destroy progress via `get_destroy_status`, sends toast notifications on completion
+- Toast notifications show real-time destroy progress with auto-dismiss on completion
+- Immediate toast notifications on async op start — `async_started` event sent via SSE hub as soon as the DB record is created, no longer waits for first poller tick
+
 ## [v1.12.0] - 2026-03-26
 
 ### Added

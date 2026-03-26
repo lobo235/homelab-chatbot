@@ -521,9 +521,25 @@ func (h *Handlers) trackAsyncOps(toolName string, args map[string]interface{}, t
 		h.trackAsyncDiscovery(resultStr, args, convID, userID)
 	case "provision_minecraft_server":
 		h.trackAsyncProvision(resultStr, convID, userID)
+	case "destroy_minecraft_server":
+		h.trackAsyncDestroy(resultStr, serverName, convID, userID)
 	case "get_download_status":
 		h.trackDownloadStatusUpdate(resultStr, args)
 	}
+}
+
+// notifyAsyncStarted sends an immediate async_started event to the user's notification
+// stream so toast notifications appear instantly instead of waiting for the next poller tick.
+func (h *Handlers) notifyAsyncStarted(userID int64, toolName, opID, serverName, desc string, convID int64) {
+	h.NotifyHub.Send(userID, notify.Event{
+		Type:        "async_started",
+		OpID:        opID,
+		OpType:      opTypeFromTool(toolName),
+		ServerName:  serverName,
+		Description: desc,
+		Status:      "pending",
+		ConvID:      convID,
+	})
 }
 
 func (h *Handlers) trackAsyncDownload(resultStr string, args map[string]interface{}, serverName string, convID, userID int64) {
@@ -540,7 +556,9 @@ func (h *Handlers) trackAsyncDownload(resultStr string, args map[string]interfac
 	}
 	if err := h.DB.CreateAsyncOp(convID, userID, "download_to_server", opID, serverName, desc); err != nil {
 		h.Log.Warn("failed to track async download", "op_id", opID, "error", err)
+		return
 	}
+	h.notifyAsyncStarted(userID, "download_to_server", opID, serverName, desc, convID)
 }
 
 func (h *Handlers) trackAsyncCreate(resultStr, toolName, serverName, desc string, convID, userID int64) {
@@ -550,7 +568,9 @@ func (h *Handlers) trackAsyncCreate(resultStr, toolName, serverName, desc string
 	}
 	if err := h.DB.CreateAsyncOp(convID, userID, toolName, opID, serverName, desc); err != nil {
 		h.Log.Warn("failed to track async op", "op_id", opID, "error", err)
+		return
 	}
+	h.notifyAsyncStarted(userID, toolName, opID, serverName, desc, convID)
 }
 
 func (h *Handlers) trackAsyncDiscovery(resultStr string, args map[string]interface{}, convID, userID int64) {
@@ -565,7 +585,9 @@ func (h *Handlers) trackAsyncDiscovery(resultStr string, args map[string]interfa
 	desc := "Learning how to deploy " + packName
 	if err := h.DB.CreateAsyncOp(convID, userID, "trigger_modpack_discovery", opID, "", desc); err != nil {
 		h.Log.Warn("failed to track async discovery", "op_id", opID, "error", err)
+		return
 	}
+	h.notifyAsyncStarted(userID, "trigger_modpack_discovery", opID, "", desc, convID)
 }
 
 func (h *Handlers) trackAsyncProvision(resultStr string, convID, userID int64) {
@@ -573,9 +595,28 @@ func (h *Handlers) trackAsyncProvision(resultStr string, convID, userID int64) {
 	if srvName == "" {
 		return
 	}
-	if err := h.DB.CreateAsyncOp(convID, userID, "provision_minecraft_server", srvName, srvName, "Starting "+srvName); err != nil {
+	desc := "Starting " + srvName
+	if err := h.DB.CreateAsyncOp(convID, userID, "provision_minecraft_server", srvName, srvName, desc); err != nil {
 		h.Log.Warn("failed to track async provision", "server", srvName, "error", err)
+		return
 	}
+	h.notifyAsyncStarted(userID, "provision_minecraft_server", srvName, srvName, desc, convID)
+}
+
+func (h *Handlers) trackAsyncDestroy(resultStr, serverName string, convID, userID int64) {
+	srvName := extractServerFromResult(resultStr)
+	if srvName == "" {
+		srvName = serverName
+	}
+	if srvName == "" {
+		return
+	}
+	desc := "Destroying " + srvName
+	if err := h.DB.CreateAsyncOp(convID, userID, "destroy_minecraft_server", srvName, srvName, desc); err != nil {
+		h.Log.Warn("failed to track async destroy", "server", srvName, "error", err)
+		return
+	}
+	h.notifyAsyncStarted(userID, "destroy_minecraft_server", srvName, srvName, desc, convID)
 }
 
 func (h *Handlers) trackDownloadStatusUpdate(resultStr string, args map[string]interface{}) {

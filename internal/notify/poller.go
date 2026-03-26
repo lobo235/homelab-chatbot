@@ -92,9 +92,9 @@ type statusResponse struct {
 
 // checkOp polls the status of a single async operation.
 func (p *Poller) checkOp(ctx context.Context, op database.AsyncOp) {
-	// Time out health checks after 10 minutes.
-	if op.ToolName == "provision_minecraft_server" && time.Since(op.CreatedAt) > healthCheckTimeout {
-		p.handleTerminal(op, statusResponse{Status: "failed", Error: "server did not become healthy within 10 minutes"})
+	// Time out long-running ops after 10 minutes.
+	if (op.ToolName == "provision_minecraft_server" || op.ToolName == "destroy_minecraft_server") && time.Since(op.CreatedAt) > healthCheckTimeout {
+		p.handleTerminal(op, statusResponse{Status: "failed", Error: "operation did not complete within 10 minutes"})
 		return
 	}
 
@@ -120,6 +120,19 @@ func (p *Poller) checkOp(ctx context.Context, op database.AsyncOp) {
 		if status.Healthy {
 			p.handleTerminal(op, statusResponse{Status: "done"})
 		} else {
+			p.handleProgress(op)
+		}
+		return
+	}
+
+	// Map destroy terminal statuses.
+	if op.ToolName == "destroy_minecraft_server" {
+		switch status.Status {
+		case "destroyed":
+			p.handleTerminal(op, statusResponse{Status: "done"})
+		case "partially_destroyed":
+			p.handleTerminal(op, statusResponse{Status: "done", Error: "some cleanup steps failed"})
+		default:
 			p.handleProgress(op)
 		}
 		return
@@ -152,6 +165,10 @@ func (p *Poller) statusToolFor(op database.AsyncOp) (string, map[string]interfac
 		}
 	case "provision_minecraft_server":
 		return "get_minecraft_server_status", map[string]interface{}{
+			"name": op.OperationID,
+		}
+	case "destroy_minecraft_server":
+		return "get_destroy_status", map[string]interface{}{
 			"name": op.OperationID,
 		}
 	default:
@@ -225,6 +242,8 @@ func opTypeFromTool(toolName string) string {
 		return "discovery"
 	case "provision_minecraft_server":
 		return "server_health"
+	case "destroy_minecraft_server":
+		return "server_destroy"
 	default:
 		return toolName
 	}
