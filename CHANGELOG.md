@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - System prompt: updated modpack boot times — heavy modpacks (80+ mods) take 8-12 min on first boot, not 3-5 min
 - System prompt: non-fatal Forge/NeoForge startup warnings (loot tables, missing recipes) are harmless — look for "Done!" log line to confirm health
 
+### Fixed
+- Rolling summary context now has explicit priority rules: current message > conversation window > summary — prevents stale summary facts from overriding recent conversation state
+- Summarization prompt now tracks topic transitions ("pivoted from X to Y") and removes superseded facts instead of accumulating contradictory information
+
 ## [v1.12.2] - 2026-03-26
 
 ### Changed

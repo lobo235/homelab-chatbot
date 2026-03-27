@@ -944,7 +944,13 @@ func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) (trimmed []chat.Ant
 
 // appendSummaryContext appends a conversation summary to existing extra context.
 func appendSummaryContext(existing, summary string) string {
-	summaryBlock := "Summary of earlier conversation messages (outside the current context window):\n" + summary
+	summaryBlock := `Summary of earlier conversation messages (outside the current context window).
+PRIORITY RULES — follow these strictly:
+1. The user's CURRENT message is the highest priority — it defines what they want right now.
+2. Recent messages in the conversation window are ground truth — they reflect the actual current state.
+3. This summary is LOWEST priority — treat it as background context only. It may contain outdated facts (e.g., a server that was discussed earlier but has since been destroyed, or a topic the user has moved on from).
+If anything in this summary conflicts with the current conversation, IGNORE the summary and trust the conversation messages.
+` + summary
 	if existing == "" {
 		return summaryBlock
 	}

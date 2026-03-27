@@ -750,9 +750,14 @@ func (s *Service) SummarizeMessages(ctx context.Context, droppedMsgs []Anthropic
 		msgText.WriteString("\n")
 	}
 
-	prompt := "Summarize the following conversation messages in a concise paragraph. Focus on: server names mentioned, actions taken, decisions made, current state of things, and any important context the assistant would need to continue helping. Keep it under 300 words."
+	prompt := `Summarize the following conversation messages concisely. Rules:
+- Focus on: server names, actions taken, decisions made, and outcomes.
+- Track topic transitions explicitly. If the user moved from one topic to another, say "User initially worked on X, then pivoted to Y" — do NOT leave both as equally active.
+- Mark completed/superseded work clearly. If a server was created then destroyed, or a decision was made then reversed, note the FINAL state, not the intermediate steps.
+- Remove stale facts from any existing summary that are contradicted by the new messages.
+- Keep it under 300 words. Prioritize recency — recent events matter more than old ones.`
 	if existingSummary != "" {
-		prompt += "\n\nExisting summary of even older messages (incorporate this):\n" + existingSummary
+		prompt += "\n\nExisting summary of even older messages (update and incorporate this — remove any facts that the new messages contradict or supersede):\n" + existingSummary
 	}
 	prompt += "\n\nMessages to summarize:\n" + msgText.String()
 
