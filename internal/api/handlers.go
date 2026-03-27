@@ -146,6 +146,11 @@ func (h *Handlers) HandleChat(w http.ResponseWriter, r *http.Request) {
 		asyncContext = sb.String()
 	}
 
+	// Inject existing context summary from prior trimming.
+	if summary, err := h.DB.GetContextSummary(conv.ID); err == nil && summary != "" {
+		asyncContext = appendSummaryContext(asyncContext, summary)
+	}
+
 	// Clean up old ops periodically (best-effort, non-blocking).
 	go func() { _ = h.DB.CleanOldOps() }()
 
@@ -256,12 +261,30 @@ func (h *Handlers) streamSSE(w http.ResponseWriter, r *http.Request, convID int6
 
 		// Trim context to keep token usage manageable.
 		preTrimCount := len(msgs)
-		msgs = h.trimContext(msgs)
-		if len(msgs) < preTrimCount {
+		var droppedMsgs []chat.AnthropicMessage
+		msgs, droppedMsgs = h.trimContext(msgs)
+		if len(droppedMsgs) > 0 {
 			sendEvent(chat.SSEEvent{
 				Type:    "debug",
 				Message: fmt.Sprintf("context_trimmed from=%d to=%d", preTrimCount, len(msgs)),
 			})
+
+			// Summarize dropped messages using Haiku (best-effort).
+			existingSummary, _ := h.DB.GetContextSummary(convID)
+			summary, sumErr := h.Chat.SummarizeMessages(r.Context(), droppedMsgs, existingSummary)
+			if sumErr != nil {
+				h.Log.Warn("context summarization failed, continuing without summary",
+					"conversation_id", convID, "error", sumErr)
+			} else {
+				if err := h.DB.SetContextSummary(convID, summary); err != nil {
+					h.Log.Warn("failed to save context summary", "conversation_id", convID, "error", err)
+				}
+				extraContext = appendSummaryContext(extraContext, summary)
+				sendEvent(chat.SSEEvent{
+					Type:    "debug",
+					Message: fmt.Sprintf("context_summarized dropped=%d summary_len=%d", len(droppedMsgs), len(summary)),
+				})
+			}
 		}
 
 		eventCh := make(chan chat.SSEEvent, 100)
@@ -881,22 +904,23 @@ func truncateToolResult(s string, sendEvent func(chat.SSEEvent)) string {
 // trimContext applies a sliding window to keep API token usage bounded.
 // It keeps the first user message (for context) plus the last ContextWindowSize
 // messages. Messages in between are dropped entirely. tool_use / tool_result
-// pairs are never split.
-func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) []chat.AnthropicMessage {
+// pairs are never split. Returns the trimmed messages and any messages that were
+// dropped (excluding the first message which is always kept).
+func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) (trimmed []chat.AnthropicMessage, dropped []chat.AnthropicMessage) {
 	windowSize := h.ContextWindowSize
 	if windowSize <= 0 {
-		windowSize = 20
+		windowSize = 40
 	}
 
 	if len(msgs) <= windowSize {
-		return msgs
+		return msgs, nil
 	}
 
 	// Find the boundary: keep first message + last windowSize messages.
 	// Walk backward from the cut point to avoid splitting tool_use/tool_result pairs.
 	cutIdx := len(msgs) - windowSize
 	if cutIdx <= 1 {
-		return msgs
+		return msgs, nil
 	}
 
 	// Ensure we don't split a tool_use from its tool_result. If the message at
@@ -906,12 +930,25 @@ func (h *Handlers) trimContext(msgs []chat.AnthropicMessage) []chat.AnthropicMes
 		cutIdx--
 	}
 
+	// Collect the messages being dropped (between first message and the window).
+	dropped = make([]chat.AnthropicMessage, cutIdx-1)
+	copy(dropped, msgs[1:cutIdx])
+
 	// Build result: first message + recent window. Middle messages are dropped.
 	result := make([]chat.AnthropicMessage, 0, 1+len(msgs)-cutIdx)
 	result = append(result, msgs[0])
 	result = append(result, msgs[cutIdx:]...)
 
-	return result
+	return result, dropped
+}
+
+// appendSummaryContext appends a conversation summary to existing extra context.
+func appendSummaryContext(existing, summary string) string {
+	summaryBlock := "Summary of earlier conversation messages (outside the current context window):\n" + summary
+	if existing == "" {
+		return summaryBlock
+	}
+	return existing + "\n\n" + summaryBlock
 }
 
 // isToolResultMessage checks if a message contains tool_result content blocks.

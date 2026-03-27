@@ -620,9 +620,12 @@ func TestTrimContext_NoTrimNeeded(t *testing.T) {
 		msgs[i] = chat.AnthropicMessage{Role: "user", Content: "msg"}
 	}
 
-	result := h.trimContext(msgs)
+	result, dropped := h.trimContext(msgs)
 	if len(result) != 5 {
 		t.Errorf("got %d messages, want 5 (no trim needed)", len(result))
+	}
+	if len(dropped) != 0 {
+		t.Errorf("got %d dropped, want 0", len(dropped))
 	}
 }
 
@@ -639,7 +642,7 @@ func TestTrimContext_TrimsMiddle(t *testing.T) {
 		msgs[i] = chat.AnthropicMessage{Role: role, Content: "msg" + strconv.Itoa(i)}
 	}
 
-	result := h.trimContext(msgs)
+	result, dropped := h.trimContext(msgs)
 	// Should keep first message + last 3 messages = 4.
 	if len(result) != 4 {
 		t.Errorf("got %d messages, want 4", len(result))
@@ -648,21 +651,28 @@ func TestTrimContext_TrimsMiddle(t *testing.T) {
 	if result[0].Content != "msg0" {
 		t.Errorf("first msg=%v", result[0].Content)
 	}
+	// Should have dropped 6 messages (indices 1-6).
+	if len(dropped) != 6 {
+		t.Errorf("got %d dropped, want 6", len(dropped))
+	}
 }
 
 func TestTrimContext_ZeroWindowSize(t *testing.T) {
 	_, _, _, h := testSetup(t)
-	h.ContextWindowSize = 0 // should default to 20
+	h.ContextWindowSize = 0 // should default to 40
 
-	msgs := make([]chat.AnthropicMessage, 25)
+	msgs := make([]chat.AnthropicMessage, 50)
 	for i := range msgs {
 		msgs[i] = chat.AnthropicMessage{Role: "user", Content: "msg"}
 	}
 
-	result := h.trimContext(msgs)
-	// Default 20 window: first msg + last 20 = 21.
-	if len(result) != 21 {
-		t.Errorf("got %d messages, want 21", len(result))
+	result, dropped := h.trimContext(msgs)
+	// Default 40 window: first msg + last 40 = 41.
+	if len(result) != 41 {
+		t.Errorf("got %d messages, want 41", len(result))
+	}
+	if len(dropped) != 9 {
+		t.Errorf("got %d dropped, want 9", len(dropped))
 	}
 }
 

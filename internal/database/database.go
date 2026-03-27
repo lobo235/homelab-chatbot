@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // Pure-Go SQLite driver.
@@ -46,12 +47,13 @@ type Session struct {
 
 // Conversation represents a chat session with messages.
 type Conversation struct {
-	ID          int64     `json:"id"`
-	UserID      int64     `json:"user_id"`
-	Title       string    `json:"title"`
-	InputTokens int64     `json:"input_tokens"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID             int64     `json:"id"`
+	UserID         int64     `json:"user_id"`
+	Title          string    `json:"title"`
+	InputTokens    int64     `json:"input_tokens"`
+	ContextSummary string    `json:"context_summary,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // Message represents a single chat message within a conversation.
@@ -197,6 +199,8 @@ func (d *DB) migrate() error {
 		`UPDATE users SET max_tokens = 500000 WHERE max_tokens = 200000`,
 		// Seed existing Minecraft servers as owned by the admin bootstrap account (user ID 1).
 		// Uses a subquery so the insert is a no-op when user ID 1 doesn't exist (e.g. in tests).
+		// Add context_summary column for rolling conversation summarization.
+		`ALTER TABLE conversations ADD COLUMN context_summary TEXT NOT NULL DEFAULT ''`,
 		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm10', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
 		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm9', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
 		`INSERT OR IGNORE INTO server_ownership (server_name, owner_user_id) SELECT 'mc-atm9-tts', 1 WHERE EXISTS (SELECT 1 FROM users WHERE id = 1)`,
@@ -212,6 +216,11 @@ func (d *DB) migrate() error {
 
 	for _, m := range migrations {
 		if _, err := d.db.Exec(m); err != nil {
+			// Ignore duplicate column errors from ALTER TABLE migrations
+			// that have already been applied.
+			if strings.Contains(err.Error(), "duplicate column") {
+				continue
+			}
 			return fmt.Errorf("exec migration: %w", err)
 		}
 	}
@@ -407,8 +416,8 @@ func (d *DB) CreateConversation(userID int64, title string) (*Conversation, erro
 func (d *DB) GetConversation(id int64) (*Conversation, error) {
 	c := &Conversation{}
 	err := d.db.QueryRow(
-		`SELECT id, user_id, title, input_tokens, created_at, updated_at FROM conversations WHERE id = ?`, id,
-	).Scan(&c.ID, &c.UserID, &c.Title, &c.InputTokens, &c.CreatedAt, &c.UpdatedAt)
+		`SELECT id, user_id, title, input_tokens, context_summary, created_at, updated_at FROM conversations WHERE id = ?`, id,
+	).Scan(&c.ID, &c.UserID, &c.Title, &c.InputTokens, &c.ContextSummary, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get conversation: %w", err)
 	}
@@ -418,7 +427,7 @@ func (d *DB) GetConversation(id int64) (*Conversation, error) {
 // ListConversations returns all conversations for a user, newest first.
 func (d *DB) ListConversations(userID int64) ([]*Conversation, error) {
 	rows, err := d.db.Query(
-		`SELECT id, user_id, title, input_tokens, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC`, userID,
+		`SELECT id, user_id, title, input_tokens, context_summary, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list conversations: %w", err)
@@ -428,7 +437,7 @@ func (d *DB) ListConversations(userID int64) ([]*Conversation, error) {
 	var convs []*Conversation
 	for rows.Next() {
 		c := &Conversation{}
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Title, &c.InputTokens, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Title, &c.InputTokens, &c.ContextSummary, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan conversation: %w", err)
 		}
 		convs = append(convs, c)
@@ -439,6 +448,25 @@ func (d *DB) ListConversations(userID int64) ([]*Conversation, error) {
 // DeleteConversation removes a conversation and its messages.
 func (d *DB) DeleteConversation(id int64) error {
 	_, err := d.db.Exec(`DELETE FROM conversations WHERE id=?`, id)
+	return err
+}
+
+// GetContextSummary returns the rolling context summary for a conversation.
+func (d *DB) GetContextSummary(convID int64) (string, error) {
+	var summary string
+	err := d.db.QueryRow(`SELECT context_summary FROM conversations WHERE id = ?`, convID).Scan(&summary)
+	if err != nil {
+		return "", fmt.Errorf("get context summary: %w", err)
+	}
+	return summary, nil
+}
+
+// SetContextSummary updates the rolling context summary for a conversation.
+func (d *DB) SetContextSummary(convID int64, summary string) error {
+	_, err := d.db.Exec(
+		`UPDATE conversations SET context_summary = ?, updated_at = datetime('now') WHERE id = ?`,
+		summary, convID,
+	)
 	return err
 }
 

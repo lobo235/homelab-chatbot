@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Rolling conversation summarization: when messages are trimmed from the context window, Haiku generates a running summary of dropped messages that is injected into the system prompt so important context is preserved across long conversations
+- `context_summary` column in conversations table to persist rolling summaries
+
+### Changed
+- Bump default `CONTEXT_WINDOW_SIZE` from 20 to 40 to support longer conversations
+
 ## [v1.12.2] - 2026-03-26
 
 ### Changed

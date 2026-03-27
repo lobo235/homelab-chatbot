@@ -58,8 +58,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("got LogLevel=%q, want %q", cfg.LogLevel, "info")
 	}
-	if cfg.ContextWindowSize != 20 {
-		t.Errorf("got ContextWindowSize=%d, want 20", cfg.ContextWindowSize)
+	if cfg.ContextWindowSize != 40 {
+		t.Errorf("got ContextWindowSize=%d, want 40", cfg.ContextWindowSize)
 	}
 }
 

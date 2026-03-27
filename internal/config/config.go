@@ -44,7 +44,7 @@ func Load() (*Config, error) {
 		DataDir:           envOr("DATA_DIR", "/data"),
 		Port:              envOr("PORT", "8080"),
 		LogLevel:          envOr("LOG_LEVEL", "info"),
-		ContextWindowSize: envOrInt("CONTEXT_WINDOW_SIZE", 20),
+		ContextWindowSize: envOrInt("CONTEXT_WINDOW_SIZE", 40),
 		MCPublicDomain:    os.Getenv("MC_PUBLIC_DOMAIN"),
 	}
 

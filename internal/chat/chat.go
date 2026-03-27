@@ -704,3 +704,94 @@ func MCPToolsToAnthropic(mcpTools []MCPTool) []AnthropicToolDef {
 func GetSystemPrompt() string {
 	return systemPrompt
 }
+
+// SummarizeMessages calls Haiku to produce a condensed summary of conversation
+// messages that are being dropped from the context window. If an existing summary
+// is provided, it is incorporated so the summary stays cumulative.
+func (s *Service) SummarizeMessages(ctx context.Context, droppedMsgs []AnthropicMessage, existingSummary string) (string, error) {
+	// Format the dropped messages into readable text for the summarizer.
+	var msgText strings.Builder
+	for _, m := range droppedMsgs {
+		msgText.WriteString(m.Role + ": ")
+		switch c := m.Content.(type) {
+		case string:
+			msgText.WriteString(c)
+		case []interface{}:
+			for _, block := range c {
+				bm, ok := block.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				switch bm["type"] {
+				case "text":
+					if text, ok := bm["text"].(string); ok {
+						msgText.WriteString(text)
+					}
+				case "tool_use":
+					name, _ := bm["name"].(string)
+					fmt.Fprintf(&msgText, "[called tool: %s]", name)
+				case "tool_result":
+					fmt.Fprintf(&msgText, "[tool result]")
+				}
+				msgText.WriteString(" ")
+			}
+		}
+		msgText.WriteString("\n")
+	}
+
+	prompt := "Summarize the following conversation messages in a concise paragraph. Focus on: server names mentioned, actions taken, decisions made, current state of things, and any important context the assistant would need to continue helping. Keep it under 300 words."
+	if existingSummary != "" {
+		prompt += "\n\nExisting summary of even older messages (incorporate this):\n" + existingSummary
+	}
+	prompt += "\n\nMessages to summarize:\n" + msgText.String()
+
+	reqBody := map[string]interface{}{
+		"model":      s.haikuModel,
+		"max_tokens": 1024,
+		"messages": []map[string]string{
+			{"role": "user", "content": prompt},
+		},
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal summary request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("create summary request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", s.apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("summary API call: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("summary API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode summary response: %w", err)
+	}
+
+	if len(result.Content) == 0 {
+		return "", fmt.Errorf("empty summary response")
+	}
+
+	return result.Content[0].Text, nil
+}
