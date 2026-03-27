@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Bump default `CONTEXT_WINDOW_SIZE` from 20 to 40 to support longer conversations
+- System prompt: AUTO_CURSEFORGE is now the preferred modpack deployment method when no server pack exists — itzg auto-detects modloader, downloads server-side mods, strips client-only mods
+- System prompt: all Minecraft server HCL specs must include shared Vault secret template block for CF_API_KEY from `kv/data/nomad-shared/curseforge`
+- System prompt: updated modpack boot times — heavy modpacks (80+ mods) take 8-12 min on first boot, not 3-5 min
+- System prompt: non-fatal Forge/NeoForge startup warnings (loot tables, missing recipes) are harmless — look for "Done!" log line to confirm health
 
 ## [v1.12.2] - 2026-03-26
 
