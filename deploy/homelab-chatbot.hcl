@@ -71,6 +71,7 @@ NOMAD_GATEWAY_KEY={{ .Data.data.nomad_gateway_key }}
 ADGUARD_GATEWAY_KEY={{ .Data.data.adguard_gateway_key }}
 CF_GATEWAY_KEY={{ .Data.data.cf_gateway_key }}
 MINECRAFT_GATEWAY_KEY={{ .Data.data.minecraft_gateway_key }}
+FILESYSTEM_GATEWAY_KEY={{ .Data.data.filesystem_gateway_key }}
 CURSEFORGE_GATEWAY_KEY={{ .Data.data.curseforge_gateway_key }}
 VAULT_GATEWAY_KEY={{ .Data.data.vault_gateway_key }}
 {{ end }}
@@ -92,6 +93,7 @@ EOF
         ADGUARD_GATEWAY_URL    = "https://adguard-home-gateway.example.com"
         CF_GATEWAY_URL         = "https://cloudflare-gateway.example.com"
         MINECRAFT_GATEWAY_URL  = "https://minecraft-gateway.example.com"
+        FILESYSTEM_GATEWAY_URL = "https://filesystem-gateway.example.com"
         CURSEFORGE_GATEWAY_URL = "https://curseforge-gateway.example.com"
         VAULT_GATEWAY_URL      = "https://vault-gateway.example.com"
 
@@ -99,6 +101,7 @@ EOF
         NOMAD_DEFAULT_DATACENTER = "dc1"
         NOMAD_DEFAULT_NODE_POOL  = "default"
         NFS_BASE_PATH            = "/path/to/minecraft"
+        # VOLUME_ALLOWLIST         = "/path/to/other1,/path/to/other2"
         MC_PUBLIC_DOMAIN         = "mc.example.com"
         CF_ZONE_NAME             = "example.com"
       }

@@ -114,8 +114,10 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `ADGUARD_GATEWAY_KEY` | no | — | AdGuard gateway API key |
 | `CF_GATEWAY_URL` | no | — | Cloudflare gateway base URL |
 | `CF_GATEWAY_KEY` | no | — | Cloudflare gateway API key |
-| `MINECRAFT_GATEWAY_URL` | no | — | Minecraft gateway base URL |
+| `MINECRAFT_GATEWAY_URL` | no | — | Minecraft gateway base URL (RCON only) |
 | `MINECRAFT_GATEWAY_KEY` | no | — | Minecraft gateway API key |
+| `FILESYSTEM_GATEWAY_URL` | no | — | Filesystem gateway base URL |
+| `FILESYSTEM_GATEWAY_KEY` | no | — | Filesystem gateway API key |
 | `CURSEFORGE_GATEWAY_URL` | no | — | CurseForge gateway base URL |
 | `CURSEFORGE_GATEWAY_KEY` | no | — | CurseForge gateway API key |
 | `VAULT_GATEWAY_URL` | no | — | Vault gateway base URL |
@@ -126,6 +128,7 @@ All config via ENV vars. Loaded from `.env` in development (via `godotenv`; miss
 | `MC_PUBLIC_DOMAIN` | no | — | Forwarded to MCP subprocess for server connection addresses |
 | `CF_ZONE_NAME` | no | — | Forwarded to MCP subprocess for Cloudflare DNS |
 | `ARTIFACT_ALLOWLIST` | no | — | Forwarded to MCP subprocess; comma-separated allowed artifact domains |
+| `VOLUME_ALLOWLIST` | no | — | Forwarded to MCP subprocess; comma-separated additional allowed volume mount prefixes |
 | `ITZG_DOCS_REFRESH_INTERVAL` | no | `24h` | Forwarded to MCP subprocess; itzg docs cache refresh interval |
 
 ## Architecture
